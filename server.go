@@ -6,46 +6,46 @@ import (
   "sync"
 )
 
-type OnConnectCallback func() bool
-type OnMessageCallback func()
-type OnCloseCallback func(*TcpConnection)
-type OnErrorCallback func()
+type onConnectCallbackType func() bool
+type onMessageCallbackType func(*Message, *TcpConnection)
+type onCloseCallbackType func(*TcpConnection)
+type onErrorCallbackType func()
 
 type TcpServer struct {
   running *AtomicBoolean
   connections map[int64]TcpConnection
   netids *AtomicInt64
   wg *sync.WaitGroup
-  onConnect OnConnectCallback
-  onMessage OnMessageCallback
-  onClose OnCloseCallback
-  onError OnErrorCallback
+  onConnect onConnectCallbackType
+  onMessage onMessageCallbackType
+  onClose onCloseCallbackType
+  onError onErrorCallbackType
 }
 
 // todo: make it configurable
 func NewTcpServer() *TcpServer {
   return &TcpServer {
-    running: NewAtomicBoolean(true)
-    connections: make(map[int64]TcpConnection) // todo: make it thread-safe
-    netids: NewAtomicInt64(0)
-    wg: &sync.WaitGroup{}
+    running: NewAtomicBoolean(true),
+    connections: make(map[int64]TcpConnection),  // todo: make it thread-safe
+    netids: NewAtomicInt64(0),
+    wg: &sync.WaitGroup{},
   }
 }
 
-func (server *TcpServer) SetOnConnectCallback(cb OnConnectCallback) {
-  server.onConnect = cb
+func (server *TcpServer) SetOnConnectCallback(cb func() bool) {
+  server.onConnect = onConnectCallbackType(cb)
 }
 
-func (server *TcpServer) SetOnMessageCallback(cb OnMessageCallback) {
-  server.onMessage = cb
+func (server *TcpServer) SetOnMessageCallback(cb func()) {
+  server.onMessage = onMessageCallbackType(cb)
 }
 
-func (server *TcpServer) SetOnErrorCallback(cb OnErrorCallback) {
-  server.onError = cb
+func (server *TcpServer) SetOnErrorCallback(cb func()) {
+  server.onError = onErrorCallbackType(cb)
 }
 
-func (server *TcpServer) SetOnCloseCallback(cb OnCloseCallBack) {
-  server.onClose = cb
+func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
+  server.onClose = onCloseCallbackType(cb)
 }
 
 func (server *TcpServer) Start() {
@@ -62,14 +62,14 @@ func (server *TcpServer) Start() {
     }
     netid := server.netids.GetAndIncrement()
     tcpConn := NewTcpConnection(server, rawConn)
-    tcp.Conn.SetName(tcpConn.RemoteAddr())
+    tcpConn.SetName(tcpConn.RemoteAddr())
     server.connections[netid] = tcpConn
     log.Printf("Accepting client %s\n", tcpConn)
     tcpConn.Do()
   }
 }
 
-fuc (server *TcpServer) Close() {
+func (server *TcpServer) Close() {
   server.running.CompareAndSet(true, false)
   for _, c := range server.connections {
     c.Close()
