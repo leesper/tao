@@ -4,7 +4,7 @@ import (
   "runtime"
   "log"
   "github.com/leesper/tao"
-  "github.com/leesper/tao/examples/echo"
+  // "github.com/leesper/tao/examples/echo"
 )
 
 type EchoServer struct {
@@ -35,9 +35,7 @@ func main() {
   })
 
   echoServer.SetOnMessageCallback(func(msg tao.Message, client *tao.TcpConnection) {
-    echoMessage := msg.(echo.EchoMessage)
-    log.Printf("Receving message %s\n", echoMessage.Message)
-    client.Write(msg)
+    log.Printf("Receving message\n")
   })
 
   echoServer.Start()

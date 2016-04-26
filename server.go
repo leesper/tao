@@ -3,19 +3,12 @@ package tao
 import (
   "log"
   "net"
-  "sync"
 )
-
-type onConnectCallbackType func() bool
-type onMessageCallbackType func(Message, *TcpConnection)
-type onCloseCallbackType func(*TcpConnection)
-type onErrorCallbackType func()
 
 type TcpServer struct {
   running *AtomicBoolean
   connections map[int64]*TcpConnection
   netids *AtomicInt64
-  wg *sync.WaitGroup
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
@@ -28,7 +21,6 @@ func NewTcpServer() *TcpServer {
     running: NewAtomicBoolean(true),
     connections: make(map[int64]*TcpConnection),  // todo: make it thread-safe
     netids: NewAtomicInt64(0),
-    wg: &sync.WaitGroup{},
   }
 }
 

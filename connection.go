@@ -24,16 +24,53 @@ type TcpConnection struct {
   conn *net.TCPConn
   name string
   closeOnce sync.Once
+  wg *sync.WaitGroup
   messageSendChan chan Message
   handlerRecvChan chan ProtocolHandler
+  onConnect onConnectCallbackType
+  onMessage onMessageCallbackType
+  onClose onCloseCallbackType
+  onError onErrorCallbackType
 }
 
 func NewTcpConnection(s *TcpServer, c *net.TCPConn) *TcpConnection {
-  return &TcpConnection {
+  tcpConn := &TcpConnection {
     owner: s,
     conn: c,
+    wg: &sync.WaitGroup{},
     messageSendChan: make(chan Message, 1024), // todo: make it configurable
     handlerRecvChan: make(chan ProtocolHandler, 1024), // todo: make it configurable
+  }
+  if s != nil {
+    tcpConn.SetOnConnectCallback(s.onConnect)
+    tcpConn.SetOnMessageCallback(s.onMessage)
+    tcpConn.SetOnErrorCallback(s.onError)
+    tcpConn.SetOnCloseCallback(s.onClose)
+  }
+  return tcpConn
+}
+
+func (client *TcpConnection) SetOnConnectCallback(cb onConnectCallbackType) {
+  if cb != nil {
+    client.onConnect = onConnectCallbackType(cb)
+  }
+}
+
+func (client *TcpConnection) SetOnMessageCallback(cb onMessageCallbackType) {
+  if cb != nil {
+    client.onMessage = onMessageCallbackType(cb)
+  }
+}
+
+func (client *TcpConnection) SetOnErrorCallback(cb onErrorCallbackType) {
+  if cb != nil {
+    client.onError = onErrorCallbackType(cb)
+  }
+}
+
+func (client *TcpConnection) SetOnCloseCallback(cb onCloseCallbackType) {
+  if cb != nil {
+    client.onClose = onCloseCallbackType(cb)
   }
 }
 
@@ -79,10 +116,10 @@ func (client *TcpConnection) Do() {
 }
 
 func (client *TcpConnection) startLoop(looper func()) {
-  client.owner.wg.Add(1)
+  client.wg.Add(1)
   go func() {
     looper()
-    client.owner.wg.Done()
+    client.wg.Done()
   }()
 }
 
@@ -138,17 +175,18 @@ func (client *TcpConnection) readLoop() {
     }
 
     // deserialize message from bytes
-    msg := messageMapper.Get(msgType)
-    if msg == nil {
+    unmarshaler := MessageMap.get(msgType)
+    if unmarshaler == nil {
       log.Printf("Error undefined message %d\n", msgType)
       continue
     }
-    if err = msg.UnmarshalBinary(msgBytes); err != nil {
+    var msg Message
+    if msg, err = unmarshaler(msgBytes); err != nil {
       log.Printf("Error unmarshal message %d\n", msgType)
       continue
     }
 
-    handlerFactory := handlerMapper.Get(msgType)
+    handlerFactory := HandlerMap.get(msgType)
     if handlerFactory == nil {
       log.Printf("Error undefined handler for message %d\n", msgType)
       continue
@@ -169,7 +207,12 @@ func (client *TcpConnection) writeLoop() {
         log.Printf("Error serializing data\n")
         continue
       }
-      if _, err = client.conn.Write(data); err != nil {
+      buf := new(bytes.Buffer)
+      binary.Write(buf, binary.BigEndian, msg.MessageNumber())
+      binary.Write(buf, binary.BigEndian, len(data))
+      binary.Write(buf, binary.BigEndian, data)
+      packet := buf.Bytes()
+      if _, err = client.conn.Write(packet); err != nil {
         log.Printf("Error writing data %s\n", err)
       }
     }
