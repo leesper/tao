@@ -241,6 +241,7 @@ func (client *TcpConnection) handleLoop() {
       return
 
     case handler := <-client.handlerRecvChan:
+      // todo: put handler into workers
       handler.Process(client)
     }
   }
