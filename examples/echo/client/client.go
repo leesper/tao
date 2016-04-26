@@ -43,7 +43,7 @@ func main() {
 
   tcpConnection.SetOnMessageCallback(func(msg tao.Message, client *tao.TcpConnection) {
     echoMessage := msg.(echo.EchoMessage)
-    log.Printf("Receving message %s\n", echoMessage.Message)
+    log.Printf("%s\n", echoMessage.Message)
   })
 
   echoMessage := echo.EchoMessage{
@@ -53,7 +53,6 @@ func main() {
   tcpConnection.Do()
 
   for i := 0; i < 3; i++ {
-    log.Printf("send")
     err = tcpConnection.Write(echoMessage)
     if err != nil {
       log.Println(err)

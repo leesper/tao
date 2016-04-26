@@ -99,7 +99,6 @@ func (client *TcpConnection) Close() {
 func (client *TcpConnection) Write(msg Message) (err error) {
   select {
   case client.messageSendChan<- msg:
-    log.Printf("async write")
     return nil
   default:
     return ErrorWouldBlock
@@ -108,7 +107,7 @@ func (client *TcpConnection) Write(msg Message) (err error) {
 
 func (client *TcpConnection) Do() {
   if client.onConnect != nil && !client.onConnect() {
-    log.Fatalln("on connect callback failed\n")
+    log.Fatalln("Error onConnect()\n")
   }
 
   // start read, write and handle loop
@@ -118,7 +117,6 @@ func (client *TcpConnection) Do() {
 }
 
 func (client *TcpConnection) startLoop(looper func()) {
-  log.Printf("Start loop")
   client.wg.Add(1)
   go func() {
     looper()
@@ -126,7 +124,7 @@ func (client *TcpConnection) startLoop(looper func()) {
   }()
 }
 
-// use type-length-value format: |3 bytes|4 bytes|n bytes <= 8M|
+// use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
 func (client *TcpConnection) readLoop() {
   defer func() {
     recover()
@@ -144,58 +142,37 @@ func (client *TcpConnection) readLoop() {
     }
 
     // read type info
-    nread, err := client.conn.Read(typeBytes)
-    if err != nil {
+    if _, err := client.conn.Read(typeBytes); err != nil {
       log.Println(err)
       return
     }
-    if (nread == 0) {
-      log.Println("Connection closed")
-      return
-    }
-    log.Printf("read %d type bytes\n", nread)
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
-    err = binary.Read(typeBuf, binary.BigEndian, &msgType)
-    if err != nil {
+    if err := binary.Read(typeBuf, binary.BigEndian, &msgType); err != nil {
       log.Fatalln(err)
     }
 
     // read length info
-    nread, err = client.conn.Read(lengthBytes)
-    if err != nil {
+    if _, err := client.conn.Read(lengthBytes); err != nil {
       log.Println(err)
       return
     }
-    if (nread == 0) {
-      log.Println("Connection closed")
-      return
-    }
-    log.Printf("read %d length bytes\n", nread)
     lengthBuf := bytes.NewReader(lengthBytes)
     var msgLen uint32
-    err = binary.Read(lengthBuf, binary.BigEndian, &msgLen)
-    if err != nil {
+    if err := binary.Read(lengthBuf, binary.BigEndian, &msgLen); err != nil {
       log.Fatalln(err)
     }
     if msgLen > MAXLEN {
-      log.Printf("error: more than 8M data:%d\n", msgLen)
+      log.Printf("Error more than 8M data:%d\n", msgLen)
       return
     }
 
     // read real application message
-    log.Printf("type %d len %d\n", msgType, msgLen)
     msgBytes := make([]byte, msgLen)
-    nread, err = client.conn.Read(msgBytes)
-    if err != nil {
+    if _, err := client.conn.Read(msgBytes); err != nil {
       log.Println(err)
       return
     }
-    if (nread == 0) {
-      log.Println("Connection closed")
-      return
-    }
-    log.Printf("read %d message bytes\n", nread)
 
     // deserialize message from bytes
     unmarshaler := MessageMap.get(msgType)
@@ -204,6 +181,7 @@ func (client *TcpConnection) readLoop() {
       continue
     }
     var msg Message
+    var err error
     if msg, err = unmarshaler(msgBytes); err != nil {
       log.Printf("Error unmarshal message %d\n", msgType)
       continue
@@ -211,7 +189,7 @@ func (client *TcpConnection) readLoop() {
 
     handlerFactory := HandlerMap.get(msgType)
     if handlerFactory == nil {
-      log.Printf("Handler not found for message %d, call onMessage()\n", msgType)
+      log.Printf("message %d call onMessage()\n", msgType)
       client.onMessage(msg, client)
       continue
     }
@@ -243,14 +221,10 @@ func (client *TcpConnection) writeLoop() {
       binary.Write(buf, binary.BigEndian, msg.MessageNumber())
       binary.Write(buf, binary.BigEndian, int32(len(data)))
       binary.Write(buf, binary.BigEndian, data)
-      log.Printf("%T %T %T\n", msg.MessageNumber(), len(data), data)
-      log.Printf("len(data): %d", len(data))
       packet := buf.Bytes()
-      log.Println("packet: ", packet)
       if _, err = client.conn.Write(packet); err != nil {
         log.Printf("Error writing data %s\n", err)
       }
-      log.Printf("write out")
     }
   }
 }
