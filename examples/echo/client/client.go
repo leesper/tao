@@ -14,7 +14,6 @@ func init() {
 
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), tao.UnmarshalFunctionType(echo.UnmarshalEchoMessage))
-  // tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), tao.NewHandlerFunctionType(echo.NewEchoMessageHandler))
 
   serverAddr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:18341")
   if err != nil {
