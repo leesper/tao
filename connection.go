@@ -2,10 +2,8 @@ package tao
 
 import (
   "bytes"
-  "io"
   "log"
   "net"
-  "time"
   "encoding/binary"
   "errors"
   "sync"
@@ -146,31 +144,34 @@ func (client *TcpConnection) readLoop() {
     }
 
     // read type info
-    _, err := io.ReadFull(client.conn, typeBytes)
-    if err == io.EOF {
-      time.Sleep(2 * time.Millisecond)
-    } else if err != nil {
+    nread, err := client.conn.Read(typeBytes)
+    if err != nil {
       log.Println(err)
-      // todo: do sth to handle error
-      continue
+      return
     }
-    log.Printf("read %d bytes\n", len(typeBytes))
-    log.Println(typeBytes)
+    if (nread == 0) {
+      log.Println("Connection closed")
+      return
+    }
+    log.Printf("read %d type bytes\n", nread)
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
     err = binary.Read(typeBuf, binary.BigEndian, &msgType)
     if err != nil {
       log.Fatalln(err)
     }
-    log.Printf("msg type %d\n", msgType)
 
     // read length info
-    _, err = io.ReadFull(client.conn, lengthBytes)
+    nread, err = client.conn.Read(lengthBytes)
     if err != nil {
-      log.Printf("Error reading message length\n")
-      // todo: do sth to handle error
-      continue
+      log.Println(err)
+      return
     }
+    if (nread == 0) {
+      log.Println("Connection closed")
+      return
+    }
+    log.Printf("read %d length bytes\n", nread)
     lengthBuf := bytes.NewReader(lengthBytes)
     var msgLen uint32
     err = binary.Read(lengthBuf, binary.BigEndian, &msgLen)
@@ -178,20 +179,23 @@ func (client *TcpConnection) readLoop() {
       log.Fatalln(err)
     }
     if msgLen > MAXLEN {
-      log.Printf("error: more than 8M data\n")
-      // todo: do something to handle it
+      log.Printf("error: more than 8M data:%d\n", msgLen)
       return
     }
 
-    // read message info
+    // read real application message
     log.Printf("type %d len %d\n", msgType, msgLen)
     msgBytes := make([]byte, msgLen)
-    _, err = io.ReadFull(client.conn, msgBytes)
+    nread, err = client.conn.Read(msgBytes)
     if err != nil {
-      log.Printf("Error reading message value\n")
-      // todo: do sth to handle error
-      continue
+      log.Println(err)
+      return
     }
+    if (nread == 0) {
+      log.Println("Connection closed")
+      return
+    }
+    log.Printf("read %d message bytes\n", nread)
 
     // deserialize message from bytes
     unmarshaler := MessageMap.get(msgType)
@@ -237,10 +241,12 @@ func (client *TcpConnection) writeLoop() {
       }
       buf := new(bytes.Buffer)
       binary.Write(buf, binary.BigEndian, msg.MessageNumber())
-      binary.Write(buf, binary.BigEndian, len(data))
+      binary.Write(buf, binary.BigEndian, int32(len(data)))
       binary.Write(buf, binary.BigEndian, data)
+      log.Printf("%T %T %T\n", msg.MessageNumber(), len(data), data)
+      log.Printf("len(data): %d", len(data))
       packet := buf.Bytes()
-      log.Println(packet)
+      log.Println("packet: ", packet)
       if _, err = client.conn.Write(packet); err != nil {
         log.Printf("Error writing data %s\n", err)
       }
