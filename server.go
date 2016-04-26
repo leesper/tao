@@ -3,6 +3,7 @@ package tao
 import (
   "log"
   "net"
+  "os"
 )
 
 type TcpServer struct {
@@ -70,5 +71,7 @@ func (server *TcpServer) Close() {
   server.running.CompareAndSet(true, false)
   for _, c := range server.connections {
     c.Close()
+    c.wg.Wait()
   }
+  os.Exit(0)
 }

@@ -28,7 +28,7 @@ func main() {
   tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), tao.NewHandlerFunctionType(echo.NewEchoMessageHandler))
 
   echoServer := NewEchoServer()
-  defer echoServer.Close()
+
   echoServer.SetOnConnectCallback(func() bool {
     log.Printf("On connect\n")
     return true
@@ -46,5 +46,7 @@ func main() {
     log.Printf("Receving message\n")
   })
 
+
   echoServer.Start()
+
 }

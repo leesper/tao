@@ -58,4 +58,5 @@ func main() {
     }
   }
   time.Sleep(1 * time.Second)
+  tcpConnection.Close()
 }
