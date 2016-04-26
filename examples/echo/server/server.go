@@ -13,7 +13,7 @@ type EchoServer struct {
 
 func NewEchoServer() *EchoServer {
   return &EchoServer {
-    tao.NewTcpServer()
+    tao.NewTcpServer(),
   }
 }
 
@@ -34,9 +34,9 @@ func main() {
     log.Printf("Closing client\n")
   })
 
-  echoServer.SetOnMessageCallback(func(msg *tao.Message, client *tao.TcpConnection) {
+  echoServer.SetOnMessageCallback(func(msg tao.Message, client *tao.TcpConnection) {
     echoMessage := msg.(echo.EchoMessage)
-    log.Printf("Receving message %s\n", echoMessage.message)
+    log.Printf("Receving message %s\n", echoMessage.Message)
     client.Write(msg)
   })
 

@@ -24,16 +24,16 @@ type TcpConnection struct {
   conn *net.TCPConn
   name string
   closeOnce sync.Once
-  msgSendChan chan *Message
-  msgRecvChan chan *Message
+  messageSendChan chan Message
+  handlerRecvChan chan ProtocolHandler
 }
 
 func NewTcpConnection(s *TcpServer, c *net.TCPConn) *TcpConnection {
   return &TcpConnection {
     owner: s,
     conn: c,
-    msgSendChan: make(chan *Message, 1024), // todo: make it configurable
-    msgRecvChan: make(chan *Message, 1024), // todo: make it configurable
+    messageSendChan: make(chan Message, 1024), // todo: make it configurable
+    handlerRecvChan: make(chan ProtocolHandler, 1024), // todo: make it configurable
   }
 }
 
@@ -58,9 +58,9 @@ func (client *TcpConnection) Close() {
   })
 }
 
-func (client *TcpConnection) Write(msg *Message) (err error) {
+func (client *TcpConnection) Write(msg Message) (err error) {
   select {
-  case client.msgSendChan<- msg:
+  case client.messageSendChan<- msg:
     return nil
   default:
     return ErrorWouldBlock
@@ -138,26 +138,33 @@ func (client *TcpConnection) readLoop() {
     }
 
     // deserialize message from bytes
-    msg := MessageMapper.Get(msgType)
+    msg := messageMapper.Get(msgType)
     if msg == nil {
       log.Printf("Error undefined message %d\n", msgType)
       continue
     }
-    if err = (*msg).UnmarshalBinary(msgBytes); err != nil {
+    if err = msg.UnmarshalBinary(msgBytes); err != nil {
       log.Printf("Error unmarshal message %d\n", msgType)
       continue
     }
 
-    // send message to handleLoop
-    client.msgRecvChan<- msg
+    handlerFactory := handlerMapper.Get(msgType)
+    if handlerFactory == nil {
+      log.Printf("Error undefined handler for message %d\n", msgType)
+      continue
+    }
+    handler := handlerFactory(msg)
+
+    // send handler to handleLoop
+    client.handlerRecvChan<- handler
   }
 }
 
 func (client *TcpConnection) writeLoop() {
   for client.owner.running.Get() {
     select {
-    case msg := <-client.msgSendChan:
-      data, err := (*msg).MarshalBinary();
+    case msg := <-client.messageSendChan:
+      data, err := msg.MarshalBinary();
       if err != nil {
         log.Printf("Error serializing data\n")
         continue
@@ -172,14 +179,7 @@ func (client *TcpConnection) writeLoop() {
 func (client *TcpConnection) handleLoop() {
   for client.owner.running.Get() {
     select {
-    case msg := <-client.msgRecvChan:
-      handlerFactory := HandlerMapper.Get(msgType)
-      if handlerFactory == nil {
-        log.Printf("Error undefined handler for message %d\n", msgType)
-        continue
-      }
-      handler := handlerFactory(msg)
-      // todo: hash handler into worker threads
+    case handler := <-client.handlerRecvChan:
       handler.Process(client)
     }
   }

@@ -7,13 +7,13 @@ import (
 )
 
 type onConnectCallbackType func() bool
-type onMessageCallbackType func(*Message, *TcpConnection)
+type onMessageCallbackType func(Message, *TcpConnection)
 type onCloseCallbackType func(*TcpConnection)
 type onErrorCallbackType func()
 
 type TcpServer struct {
   running *AtomicBoolean
-  connections map[int64]TcpConnection
+  connections map[int64]*TcpConnection
   netids *AtomicInt64
   wg *sync.WaitGroup
   onConnect onConnectCallbackType
@@ -26,7 +26,7 @@ type TcpServer struct {
 func NewTcpServer() *TcpServer {
   return &TcpServer {
     running: NewAtomicBoolean(true),
-    connections: make(map[int64]TcpConnection),  // todo: make it thread-safe
+    connections: make(map[int64]*TcpConnection),  // todo: make it thread-safe
     netids: NewAtomicInt64(0),
     wg: &sync.WaitGroup{},
   }
@@ -36,7 +36,7 @@ func (server *TcpServer) SetOnConnectCallback(cb func() bool) {
   server.onConnect = onConnectCallbackType(cb)
 }
 
-func (server *TcpServer) SetOnMessageCallback(cb func()) {
+func (server *TcpServer) SetOnMessageCallback(cb func(Message, *TcpConnection)) {
   server.onMessage = onMessageCallbackType(cb)
 }
 
@@ -49,20 +49,25 @@ func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
 }
 
 func (server *TcpServer) Start() {
-  listener, err := net.Listen("tcp", ":8341")
+  tcpAddr, err := net.ResolveTCPAddr("tcp", ":18341")
+  if err != nil {
+    log.Fatalln(err)
+  }
+
+  listener, err := net.ListenTCP("tcp", tcpAddr)
   if err != nil {
     log.Fatalln(err)
   }
   defer listener.Close()
 
   for server.running.Get() {
-    rawConn, err := listener.Accept()
+    rawConn, err := listener.AcceptTCP()
     if err != nil {
       log.Fatalln(err)
     }
     netid := server.netids.GetAndIncrement()
     tcpConn := NewTcpConnection(server, rawConn)
-    tcpConn.SetName(tcpConn.RemoteAddr())
+    tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections[netid] = tcpConn
     log.Printf("Accepting client %s\n", tcpConn)
     tcpConn.Do()
