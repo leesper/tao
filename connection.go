@@ -125,6 +125,7 @@ func (client *TcpConnection) startLoop(looper func()) {
 }
 
 // use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
+// todo: maybe a special codec?
 func (client *TcpConnection) readLoop() {
   defer func() {
     recover()
