@@ -20,11 +20,22 @@ func (em EchoMessage) MessageNumber() int32 {
   return 1
 }
 
+func UnmarshalEchoMessage(data []byte) (message tao.Message, err error) {
+  if data == nil {
+    return nil, ErrorNilData
+  }
+  msg := string(data)
+  echo := EchoMessage{
+    Message: msg,
+  }
+  return echo, nil
+}
+
 type EchoMessageHandler struct {
   message tao.Message
 }
 
-func NewEchoMessageHandler(msg tao.Message) EchoMessageHandler {
+func NewEchoMessageHandler(msg tao.Message) tao.ProtocolHandler {
   return EchoMessageHandler{
     message: msg,
   }

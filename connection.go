@@ -12,7 +12,7 @@ import (
 )
 
 const (
-  NTYPE = 3
+  NTYPE = 4
   NLEN = 4
   MAXLEN = 1 << 23  // 8M
 )
@@ -20,13 +20,13 @@ const (
 var ErrorWouldBlock error = errors.New("Would block")
 
 type TcpConnection struct {
-  owner *TcpServer
   conn *net.TCPConn
   name string
   closeOnce sync.Once
   wg *sync.WaitGroup
   messageSendChan chan Message
   handlerRecvChan chan ProtocolHandler
+  closeConnChan chan struct{}
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
@@ -35,11 +35,11 @@ type TcpConnection struct {
 
 func NewTcpConnection(s *TcpServer, c *net.TCPConn) *TcpConnection {
   tcpConn := &TcpConnection {
-    owner: s,
     conn: c,
     wg: &sync.WaitGroup{},
     messageSendChan: make(chan Message, 1024), // todo: make it configurable
     handlerRecvChan: make(chan ProtocolHandler, 1024), // todo: make it configurable
+    closeConnChan: make(chan struct{}),
   }
   if s != nil {
     tcpConn.SetOnConnectCallback(s.onConnect)
@@ -50,25 +50,25 @@ func NewTcpConnection(s *TcpServer, c *net.TCPConn) *TcpConnection {
   return tcpConn
 }
 
-func (client *TcpConnection) SetOnConnectCallback(cb onConnectCallbackType) {
+func (client *TcpConnection) SetOnConnectCallback(cb func() bool) {
   if cb != nil {
     client.onConnect = onConnectCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) SetOnMessageCallback(cb onMessageCallbackType) {
+func (client *TcpConnection) SetOnMessageCallback(cb func(Message, *TcpConnection)) {
   if cb != nil {
     client.onMessage = onMessageCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) SetOnErrorCallback(cb onErrorCallbackType) {
+func (client *TcpConnection) SetOnErrorCallback(cb func()) {
   if cb != nil {
     client.onError = onErrorCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) SetOnCloseCallback(cb onCloseCallbackType) {
+func (client *TcpConnection) SetOnCloseCallback(cb func(*TcpConnection)) {
   if cb != nil {
     client.onClose = onCloseCallbackType(cb)
   }
@@ -88,9 +88,12 @@ func (client *TcpConnection) String() string {
 
 func (client *TcpConnection) Close() {
   client.closeOnce.Do(func() {
+    close(client.closeConnChan)
+    close(client.messageSendChan)
+    close(client.handlerRecvChan)
     client.conn.Close()
-    if (client.owner.onClose != nil) {
-      client.owner.onClose(client)
+    if (client.onClose != nil) {
+      client.onClose(client)
     }
   })
 }
@@ -98,6 +101,7 @@ func (client *TcpConnection) Close() {
 func (client *TcpConnection) Write(msg Message) (err error) {
   select {
   case client.messageSendChan<- msg:
+    log.Printf("async write")
     return nil
   default:
     return ErrorWouldBlock
@@ -105,7 +109,7 @@ func (client *TcpConnection) Write(msg Message) (err error) {
 }
 
 func (client *TcpConnection) Do() {
-  if client.owner.onConnect != nil && !client.owner.onConnect() {
+  if client.onConnect != nil && !client.onConnect() {
     log.Fatalln("on connect callback failed\n")
   }
 
@@ -116,6 +120,7 @@ func (client *TcpConnection) Do() {
 }
 
 func (client *TcpConnection) startLoop(looper func()) {
+  log.Printf("Start loop")
   client.wg.Add(1)
   go func() {
     looper()
@@ -125,25 +130,39 @@ func (client *TcpConnection) startLoop(looper func()) {
 
 // use type-length-value format: |3 bytes|4 bytes|n bytes <= 8M|
 func (client *TcpConnection) readLoop() {
+  defer func() {
+    recover()
+    client.Close()
+  }()
+
   typeBytes := make([]byte, NTYPE)
   lengthBytes := make([]byte, NLEN)
+  for {
+    select {
+    case <-client.closeConnChan:
+      return
 
-  for client.owner.running.Get() {
+    default:
+    }
+
     // read type info
     _, err := io.ReadFull(client.conn, typeBytes)
     if err == io.EOF {
       time.Sleep(2 * time.Millisecond)
-    } else {
-      log.Printf("Error reading message type\n")
+    } else if err != nil {
+      log.Println(err)
       // todo: do sth to handle error
       continue
     }
+    log.Printf("read %d bytes\n", len(typeBytes))
+    log.Println(typeBytes)
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
     err = binary.Read(typeBuf, binary.BigEndian, &msgType)
     if err != nil {
       log.Fatalln(err)
     }
+    log.Printf("msg type %d\n", msgType)
 
     // read length info
     _, err = io.ReadFull(client.conn, lengthBytes)
@@ -161,7 +180,7 @@ func (client *TcpConnection) readLoop() {
     if msgLen > MAXLEN {
       log.Printf("error: more than 8M data\n")
       // todo: do something to handle it
-      continue
+      return
     }
 
     // read message info
@@ -188,19 +207,28 @@ func (client *TcpConnection) readLoop() {
 
     handlerFactory := HandlerMap.get(msgType)
     if handlerFactory == nil {
-      log.Printf("Error undefined handler for message %d\n", msgType)
+      log.Printf("Handler not found for message %d, call onMessage()\n", msgType)
+      client.onMessage(msg, client)
       continue
     }
-    handler := handlerFactory(msg)
 
     // send handler to handleLoop
+    handler := handlerFactory(msg)
     client.handlerRecvChan<- handler
   }
 }
 
 func (client *TcpConnection) writeLoop() {
-  for client.owner.running.Get() {
+  defer func() {
+    recover()
+    client.Close()
+  }()
+
+  for {
     select {
+    case <-client.closeConnChan:
+      return
+
     case msg := <-client.messageSendChan:
       data, err := msg.MarshalBinary();
       if err != nil {
@@ -212,16 +240,26 @@ func (client *TcpConnection) writeLoop() {
       binary.Write(buf, binary.BigEndian, len(data))
       binary.Write(buf, binary.BigEndian, data)
       packet := buf.Bytes()
+      log.Println(packet)
       if _, err = client.conn.Write(packet); err != nil {
         log.Printf("Error writing data %s\n", err)
       }
+      log.Printf("write out")
     }
   }
 }
 
 func (client *TcpConnection) handleLoop() {
-  for client.owner.running.Get() {
+  defer func() {
+    recover()
+    client.Close()
+  }()
+
+  for {
     select {
+    case <-client.closeConnChan:
+      return
+
     case handler := <-client.handlerRecvChan:
       handler.Process(client)
     }
