@@ -194,7 +194,7 @@ func (client *TcpConnection) readLoop() {
         log.Printf("Message %d call onMessage()\n", msgType)
         client.onMessage(msg, client)
       } else {
-        log.Printf("Can not handle message %d", msgType)
+        log.Printf("No handler or onMessage() found for message %d", msgType)
       }
       continue
     }
