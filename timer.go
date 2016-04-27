@@ -98,6 +98,17 @@ func (tw *TimingWheel) getExpired() []*timerType {
   return expired
 }
 
+func (tw *TimingWheel) update(timers []*timerType) {
+  if timers != nil {
+    for _, t := range timers {
+      if t.isRepeat() {
+        t.expiration = t.expiration.Add(t.interval)
+        heap.Push(&tw.timers, t)
+      }
+    }
+  }
+}
+
 func (tw *TimingWheel) start() {
   for {
     select {
@@ -108,8 +119,9 @@ func (tw *TimingWheel) start() {
     case <-tw.ticker.C:
       timers := tw.getExpired()
       for _, t := range timers {
-        tw.timeOutChan<- t.onTimeOut
+        tw.timeOutChan<- t.onTimeOut  // fixme: may block if channel full
       }
+      tw.update(timers)
     }
   }
 }
