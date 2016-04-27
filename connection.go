@@ -7,6 +7,7 @@ import (
   "encoding/binary"
   "errors"
   "sync"
+  "time"
 )
 
 const (
@@ -25,19 +26,21 @@ type TcpConnection struct {
   messageSendChan chan Message
   handlerRecvChan chan ProtocolHandler
   closeConnChan chan struct{}
+  timing *TimingWheel
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
   onError onErrorCallbackType
 }
 
-func NewTcpConnection(s *TcpServer, c *net.TCPConn) *TcpConnection {
+func NewTcpConnection(s *TcpServer, c *net.TCPConn, t *TimingWheel) *TcpConnection {
   tcpConn := &TcpConnection {
     conn: c,
     wg: &sync.WaitGroup{},
     messageSendChan: make(chan Message, 1024), // todo: make it configurable
     handlerRecvChan: make(chan ProtocolHandler, 1024), // todo: make it configurable
     closeConnChan: make(chan struct{}),
+    timing: t,
   }
   if s != nil {
     tcpConn.SetOnConnectCallback(s.onConnect)
@@ -64,6 +67,10 @@ func (client *TcpConnection) SetOnErrorCallback(cb func()) {
   if cb != nil {
     client.onError = onErrorCallbackType(cb)
   }
+}
+
+func (client *TcpConnection) Wait() {
+  client.wg.Wait()
 }
 
 func (client *TcpConnection) SetOnCloseCallback(cb func(*TcpConnection)) {
@@ -115,6 +122,32 @@ func (client *TcpConnection) Do() {
   client.startLoop(client.writeLoop)
   client.startLoop(client.handleLoop)
 }
+
+func (client *TcpConnection) RunAt(t time.Time, cb func(t time.Time)) bool {
+  if client.timing != nil {
+    client.timing.AddTimer(t, 0, cb)
+    return true
+  }
+  return false
+}
+
+func (client *TcpConnection) RunAfter(d time.Duration, cb func(t time.Time)) bool {
+  delay := time.Now().Add(d)
+  if client.timing != nil {
+    return client.RunAt(delay, cb)
+  }
+  return false
+}
+
+func (client *TcpConnection) RunEvery(i time.Duration, cb func(t time.Time)) bool {
+  delay := time.Now().Add(i)
+  if client.timing != nil {
+    client.timing.AddTimer(delay, i, cb)
+    return true
+  }
+  return false
+}
+
 
 func (client *TcpConnection) startLoop(looper func()) {
   client.wg.Add(1)
@@ -240,14 +273,31 @@ func (client *TcpConnection) handleLoop() {
     client.Close()
   }()
 
-  for {
-    select {
-    case <-client.closeConnChan:
-      return
+  if client.timing == nil {
+    for {
+      select {
+      case <-client.closeConnChan:
+        return
 
-    case handler := <-client.handlerRecvChan:
-      // todo: put handler into workers
-      handler.Process(client)
+      case handler := <-client.handlerRecvChan:
+        // todo: put handler into workers
+        handler.Process(client)
+      }
+    }
+  } else {
+    for {
+      select {
+      case <-client.closeConnChan:
+        return
+
+      case handler := <-client.handlerRecvChan:
+        // todo: put handler into workers
+        handler.Process(client)
+
+      case timeoutcb := <-client.timing.TimeOutChan:
+        // todo: put callback into workers
+        timeoutcb(time.Now())
+      }
     }
   }
 }

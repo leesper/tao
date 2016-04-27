@@ -10,6 +10,7 @@ type TcpServer struct {
   running *AtomicBoolean
   connections map[int64]*TcpConnection
   netids *AtomicInt64
+  timing *TimingWheel
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
@@ -22,6 +23,7 @@ func NewTcpServer() *TcpServer {
     running: NewAtomicBoolean(true),
     connections: make(map[int64]*TcpConnection),  // todo: make it thread-safe
     netids: NewAtomicInt64(0),
+    timing: NewTimingWheel(),
   }
 }
 
@@ -59,7 +61,7 @@ func (server *TcpServer) Start() {
       log.Fatalln(err)
     }
     netid := server.netids.GetAndIncrement()
-    tcpConn := NewTcpConnection(server, rawConn)
+    tcpConn := NewTcpConnection(server, rawConn, server.timing)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections[netid] = tcpConn
     log.Printf("Accepting client %s\n", tcpConn)
