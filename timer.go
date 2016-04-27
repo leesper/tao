@@ -1,10 +1,14 @@
 package tao
 
 import (
+  "log"
   "time"
-  "math"
   "container/heap"
 )
+
+func init() {
+  log.SetFlags(log.Lshortfile | log.LstdFlags)
+}
 
 type timerQueueType []*timerType
 
@@ -45,32 +49,30 @@ type timerType struct {
   index int  // for container/heap
 }
 
-func newTimer(cb func(time.Time), when time.Time, interv time.Duration) *timerType {
+func newTimer(when time.Time, interv time.Duration, cb func(time.Time)) *timerType {
   return &timerType{
     expiration: when,
     interval: interv,
-    onTimeOut: onTimeOutCallbackType(cb ),
+    onTimeOut: onTimeOutCallbackType(cb),
   }
 }
 
 func (t *timerType) isRepeat() bool {
-  return t.interval > 0
+  return int64(t.interval) > 0
 }
 
 type TimingWheel struct {
-  accuracy time.Duration
-  timeOutChan chan onTimeOutCallbackType
+  TimeOutChan chan onTimeOutCallbackType
   timers timerQueueType
   ticker *time.Ticker
   quit chan struct{}
 }
 
-func NewTimingWheel(unit time.Duration) *TimingWheel {
+func NewTimingWheel() *TimingWheel {
   timingWheel := &TimingWheel{
-    accuracy: unit,
-    timeOutChan: make(chan onTimeOutCallbackType, 1024),
+    TimeOutChan: make(chan onTimeOutCallbackType, 1024),
     timers: make(timerQueueType, 0),
-    ticker: time.NewTicker(unit),
+    ticker: time.NewTicker(time.Nanosecond),
     quit: make(chan struct{}),
   }
   heap.Init(&timingWheel.timers)
@@ -78,8 +80,12 @@ func NewTimingWheel(unit time.Duration) *TimingWheel {
   return timingWheel
 }
 
-func (tw *TimingWheel) AddTimer(cb func(time.Time), when time.Time, interv time.Duration) {
-  heap.Push(&tw.timers, newTimer(cb, when, interv))
+func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, cb func(time.Time)) {
+  heap.Push(&tw.timers, newTimer(when, interv, cb))
+}
+
+func (tw *TimingWheel) Stop() {
+  close(tw.quit)
 }
 
 func (tw *TimingWheel) getExpired() []*timerType {
@@ -87,9 +93,10 @@ func (tw *TimingWheel) getExpired() []*timerType {
   now := time.Now()
   for tw.timers.Len() > 0 {
     timer := heap.Pop(&tw.timers).(*timerType)
-    delta := math.Abs(float64(now.UnixNano() - timer.expiration.UnixNano()))
-    if 0.0 <= delta && delta < 1.0 {
+    delta := float64(timer.expiration.UnixNano() - now.UnixNano()) / 1e9
+    if -1.0 < delta && delta <= 0.0 {
       expired = append(expired, timer)
+      continue
     } else {
       heap.Push(&tw.timers, timer)
       break
@@ -118,8 +125,9 @@ func (tw *TimingWheel) start() {
 
     case <-tw.ticker.C:
       timers := tw.getExpired()
+      // log.Printf("time out timers %d\n", len(timers))
       for _, t := range timers {
-        tw.timeOutChan<- t.onTimeOut  // fixme: may block if channel full
+        tw.TimeOutChan<- t.onTimeOut  // fixme: may block if channel full
       }
       tw.update(timers)
     }
