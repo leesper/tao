@@ -190,8 +190,12 @@ func (client *TcpConnection) readLoop() {
 
     handlerFactory := HandlerMap.get(msgType)
     if handlerFactory == nil {
-      log.Printf("message %d call onMessage()\n", msgType)
-      client.onMessage(msg, client)
+      if client.onMessage != nil {
+        log.Printf("Message %d call onMessage()\n", msgType)
+        client.onMessage(msg, client)
+      } else {
+        log.Printf("Can not handle message %d", msgType)
+      }
       continue
     }
 
