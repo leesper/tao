@@ -72,7 +72,7 @@ func NewTimingWheel() *TimingWheel {
   timingWheel := &TimingWheel{
     TimeOutChan: make(chan onTimeOutCallbackType, 1024),
     timers: make(timerQueueType, 0),
-    ticker: time.NewTicker(time.Nanosecond),
+    ticker: time.NewTicker(time.Millisecond),
     quit: make(chan struct{}),
   }
   heap.Init(&timingWheel.timers)
