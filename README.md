@@ -1,7 +1,7 @@
 Tao - A golang TCP framework
 
 
-TODO list:
+TODO list:  
 1. Make it configurable by XML or something;  
 2. Add a goroutine worker pool for handlers;  
 3. Support Google flatbuffers;  
