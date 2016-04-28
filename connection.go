@@ -179,13 +179,18 @@ func (client *TcpConnection) readLoop() {
     }
 
     // read type info
-    if _, err := client.conn.Read(typeBytes); err != nil {
-      if err != io.EOF {
-        log.Println(err)
-        continue
-      } else {
-        return
-      }
+    // if _, err := client.conn.Read(typeBytes); err != nil {
+    //   if err != io.EOF {
+    //     log.Println(err)
+    //     continue
+    //   } else {
+    //     return
+    //   }
+    // }
+    _, err := io.ReadFull(client.conn, typeBytes)
+    if err != nil {
+      log.Printf("Error: failed to read message type - %s", err)
+      return
     }
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
@@ -194,8 +199,13 @@ func (client *TcpConnection) readLoop() {
     }
 
     // read length info
-    if _, err := client.conn.Read(lengthBytes); err != nil {
-      log.Println(err)
+    // if _, err := client.conn.Read(lengthBytes); err != nil {
+    //   log.Println(err)
+    //   return
+    // }
+    _, err = io.ReadFull(client.conn, lengthBytes)
+    if err != nil {
+      log.Printf("Error: failed to read message length - %s", err)
       return
     }
     lengthBuf := bytes.NewReader(lengthBytes)
@@ -204,14 +214,19 @@ func (client *TcpConnection) readLoop() {
       log.Fatalln(err)
     }
     if msgLen > MAXLEN {
-      log.Printf("Error more than 8M data:%d\n", msgLen)
+      log.Printf("Error: more than 8M data: %d\n", msgLen)
       return
     }
 
     // read real application message
     msgBytes := make([]byte, msgLen)
-    if _, err := client.conn.Read(msgBytes); err != nil {
-      log.Println(err)
+    // if _, err := client.conn.Read(msgBytes); err != nil {
+    //   log.Println(err)
+    //   return
+    // }
+    _, err = io.ReadFull(client.conn, msgBytes)
+    if err != nil {
+      log.Printf("Error: failed to read message value - %s", err)
       return
     }
 
@@ -222,7 +237,6 @@ func (client *TcpConnection) readLoop() {
       continue
     }
     var msg Message
-    var err error
     if msg, err = unmarshaler(msgBytes); err != nil {
       log.Printf("Error unmarshal message %d\n", msgType)
       continue
