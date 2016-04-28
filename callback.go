@@ -4,7 +4,7 @@ import (
   "time"
 )
 
-type onConnectCallbackType func() bool
+type onConnectCallbackType func(*TcpConnection) bool
 type onMessageCallbackType func(Message, *TcpConnection)
 type onCloseCallbackType func(*TcpConnection)
 type onErrorCallbackType func()

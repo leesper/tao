@@ -9,3 +9,4 @@ TODO list:
 5. Add more use-case examples;  
 6. Timers should support cancel() operation;  
 7. Maybe a ByteBuffer class to encapsulate byte operations;  
+8. Make connections map thread-safe;  

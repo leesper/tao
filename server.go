@@ -27,7 +27,7 @@ func NewTcpServer() *TcpServer {
   }
 }
 
-func (server *TcpServer) SetOnConnectCallback(cb func() bool) {
+func (server *TcpServer) SetOnConnectCallback(cb func(*TcpConnection) bool) {
   server.onConnect = onConnectCallbackType(cb)
 }
 

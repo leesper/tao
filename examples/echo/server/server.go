@@ -29,7 +29,7 @@ func main() {
 
   echoServer := NewEchoServer()
 
-  echoServer.SetOnConnectCallback(func() bool {
+  echoServer.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")
     return true
   })

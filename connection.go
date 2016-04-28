@@ -54,7 +54,7 @@ func NewTcpConnection(s *TcpServer, c *net.TCPConn, t *TimingWheel) *TcpConnecti
   return tcpConn
 }
 
-func (client *TcpConnection) SetOnConnectCallback(cb func() bool) {
+func (client *TcpConnection) SetOnConnectCallback(cb func(*TcpConnection) bool) {
   if cb != nil {
     client.onConnect = onConnectCallbackType(cb)
   }
@@ -116,7 +116,7 @@ func (client *TcpConnection) Write(msg Message) (err error) {
 }
 
 func (client *TcpConnection) Do() {
-  if client.onConnect != nil && !client.onConnect() {
+  if client.onConnect != nil && !client.onConnect(client) {
     log.Fatalln("Error onConnect()\n")
   }
 

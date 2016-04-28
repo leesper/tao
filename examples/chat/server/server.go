@@ -29,7 +29,7 @@ func main() {
 
   chatServer := NewChatServer()
 
-  chatServer.SetOnConnectCallback(func() bool {
+  chatServer.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -41,10 +41,6 @@ func main() {
   chatServer.SetOnCloseCallback(func(client *tao.TcpConnection) {
     log.Printf("Closing client\n")
   })
-
-  // chatServer.SetOnMessageCallback(func(msg tao.Message, client *tao.TcpConnection) {
-  //   log.Printf("Receving message\n")
-  // })
 
   chatServer.Start()
 }
