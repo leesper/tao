@@ -27,7 +27,7 @@ func main() {
 
   tcpConnection := tao.NewTcpConnection(nil, tcpConn, tao.NewTimingWheel())
 
-  tcpConnection.SetOnConnectCallback(func() bool {
+  tcpConnection.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -52,15 +52,10 @@ func main() {
     })
 
   tcpConnection.RunAfter(
-    2 * time.Second,
-    func(t time.Time) {
-      log.Printf("RUN AFTER 2 SECONDS AT %s\n", t)
-    })
-
-  tcpConnection.RunEvery(
     3 * time.Second,
-    func(t time.Time){
-      log.Printf("RUN EVERY 3 SECONDS AT %s\n", t)
+    func(t time.Time) {
+      log.Printf("RUN AFTER 3 SECONDS AT %s, THEN CLOSE\n", t)
+      tcpConnection.Close()
     })
 
   echoMessage := echo.EchoMessage{
@@ -76,5 +71,5 @@ func main() {
     }
   }
   tcpConnection.Wait()
-  tcpConnection.Close()
+
 }
