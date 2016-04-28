@@ -178,15 +178,6 @@ func (client *TcpConnection) readLoop() {
     default:
     }
 
-    // read type info
-    // if _, err := client.conn.Read(typeBytes); err != nil {
-    //   if err != io.EOF {
-    //     log.Println(err)
-    //     continue
-    //   } else {
-    //     return
-    //   }
-    // }
     _, err := io.ReadFull(client.conn, typeBytes)
     if err != nil {
       log.Printf("Error: failed to read message type - %s", err)
@@ -198,11 +189,6 @@ func (client *TcpConnection) readLoop() {
       log.Fatalln(err)
     }
 
-    // read length info
-    // if _, err := client.conn.Read(lengthBytes); err != nil {
-    //   log.Println(err)
-    //   return
-    // }
     _, err = io.ReadFull(client.conn, lengthBytes)
     if err != nil {
       log.Printf("Error: failed to read message length - %s", err)
@@ -220,10 +206,6 @@ func (client *TcpConnection) readLoop() {
 
     // read real application message
     msgBytes := make([]byte, msgLen)
-    // if _, err := client.conn.Read(msgBytes); err != nil {
-    //   log.Println(err)
-    //   return
-    // }
     _, err = io.ReadFull(client.conn, msgBytes)
     if err != nil {
       log.Printf("Error: failed to read message value - %s", err)
