@@ -125,7 +125,6 @@ func (tw *TimingWheel) start() {
 
     case <-tw.ticker.C:
       timers := tw.getExpired()
-      // log.Printf("time out timers %d\n", len(timers))
       for _, t := range timers {
         tw.TimeOutChan<- t.onTimeOut  // fixme: may block if channel full
       }
