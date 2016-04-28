@@ -77,3 +77,7 @@ func (server *TcpServer) Close() {
   }
   os.Exit(0)
 }
+
+func (server *TcpServer) GetAllConnections() map[int64]*TcpConnection {
+  return server.connections
+}

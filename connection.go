@@ -8,6 +8,7 @@ import (
   "errors"
   "sync"
   "time"
+  "io"
 )
 
 const (
@@ -19,6 +20,7 @@ const (
 var ErrorWouldBlock error = errors.New("Would block")
 
 type TcpConnection struct {
+  Owner *TcpServer
   conn *net.TCPConn
   name string
   closeOnce sync.Once
@@ -35,6 +37,7 @@ type TcpConnection struct {
 
 func NewTcpConnection(s *TcpServer, c *net.TCPConn, t *TimingWheel) *TcpConnection {
   tcpConn := &TcpConnection {
+    Owner: s,
     conn: c,
     wg: &sync.WaitGroup{},
     messageSendChan: make(chan Message, 1024), // todo: make it configurable
@@ -177,8 +180,12 @@ func (client *TcpConnection) readLoop() {
 
     // read type info
     if _, err := client.conn.Read(typeBytes); err != nil {
-      log.Println(err)
-      return
+      if err != io.EOF {
+        log.Println(err)
+        continue
+      } else {
+        return
+      }
     }
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
