@@ -20,6 +20,7 @@ const (
 var ErrorWouldBlock error = errors.New("Would block")
 
 type TcpConnection struct {
+  netid int64
   Owner *TcpServer
   conn *net.TCPConn
   name string
@@ -35,8 +36,9 @@ type TcpConnection struct {
   onError onErrorCallbackType
 }
 
-func NewTcpConnection(s *TcpServer, c *net.TCPConn, t *TimingWheel) *TcpConnection {
+func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel) *TcpConnection {
   tcpConn := &TcpConnection {
+    netid: id,
     Owner: s,
     conn: c,
     wg: &sync.WaitGroup{},
@@ -102,6 +104,9 @@ func (client *TcpConnection) Close() {
     client.conn.Close()
     if (client.onClose != nil) {
       client.onClose(client)
+    }
+    if client.Owner != nil {
+      delete(client.Owner.connections, client.netid)
     }
   })
 }

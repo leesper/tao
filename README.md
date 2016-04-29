@@ -9,3 +9,4 @@ TODO list:
 5. Add more use-case examples;  
 6. Timers should support cancel() operation;  
 7. Make connections map thread-safe;  
+8. Add tls support;   

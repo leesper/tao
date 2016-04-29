@@ -39,7 +39,7 @@ func main() {
   })
 
   chatServer.SetOnCloseCallback(func(client *tao.TcpConnection) {
-    log.Printf("Closing client\n")
+    log.Printf("Closing chat client\n")
   })
 
   chatServer.Start()

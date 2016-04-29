@@ -61,10 +61,10 @@ func (server *TcpServer) Start() {
       log.Fatalln(err)
     }
     netid := server.netids.GetAndIncrement()
-    tcpConn := NewTcpConnection(server, rawConn, server.timing)
+    tcpConn := NewTcpConnection(netid, server, rawConn, server.timing)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections[netid] = tcpConn
-    log.Printf("Accepting client %s\n", tcpConn)
+    log.Printf("Accepting client %s\n, net id %d", tcpConn, netid)
     tcpConn.Do()
   }
 }

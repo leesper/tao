@@ -27,10 +27,10 @@ func main() {
     log.Fatalln(err)
   }
 
-  tcpConnection := tao.NewTcpConnection(nil, tcpConn, tao.NewTimingWheel())
+  tcpConnection := tao.NewTcpConnection(0, nil, tcpConn, tao.NewTimingWheel())
   defer tcpConnection.Close()
 
-  tcpConnection.SetOnConnectCallback(func() bool {
+  tcpConnection.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -52,15 +52,14 @@ func main() {
   for {
     reader := bufio.NewReader(os.Stdin)
     talk, _ := reader.ReadString('\n')
-
-    if len(talk) >= 3 && talk[0:3] != "bye" {
+    if talk == "bye\n" {
+      break
+    } else {
       msg := chat.ChatMessage{
         Info: talk,
       }
       tcpConnection.Write(msg)
-    } else {
-      break
     }
   }
-  tcpConnection.Wait()
+  tcpConnection.Close()
 }
