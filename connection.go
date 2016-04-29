@@ -27,7 +27,7 @@ type TcpConnection struct {
   closeOnce sync.Once
   wg *sync.WaitGroup
   messageSendChan chan Message
-  handlerRecvChan chan ProtocolHandler
+  handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
   timing *TimingWheel
   onConnect onConnectCallbackType
@@ -43,7 +43,7 @@ func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel) *T
     conn: c,
     wg: &sync.WaitGroup{},
     messageSendChan: make(chan Message, 1024), // todo: make it configurable
-    handlerRecvChan: make(chan ProtocolHandler, 1024), // todo: make it configurable
+    handlerRecvChan: make(chan MessageHandler, 1024), // todo: make it configurable
     closeConnChan: make(chan struct{}),
     timing: t,
   }

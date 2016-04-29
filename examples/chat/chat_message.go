@@ -34,7 +34,7 @@ type ChatMessageHandler struct {
   message tao.Message
 }
 
-func NewChatMessageHandler(msg tao.Message) tao.ProtocolHandler {
+func NewChatMessageHandler(msg tao.Message) tao.MessageHandler {
   return ChatMessageHandler{
     message: msg,
   }

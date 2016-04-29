@@ -35,7 +35,7 @@ type EchoMessageHandler struct {
   message tao.Message
 }
 
-func NewEchoMessageHandler(msg tao.Message) tao.ProtocolHandler {
+func NewEchoMessageHandler(msg tao.Message) tao.MessageHandler {
   return EchoMessageHandler{
     message: msg,
   }

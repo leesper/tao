@@ -9,11 +9,11 @@ type Message interface {
   encoding.BinaryMarshaler
 }
 
-type ProtocolHandler interface {
+type MessageHandler interface {
   Process(client *TcpConnection) bool
 }
 
-type NewHandlerFunctionType func(m Message) ProtocolHandler
+type NewHandlerFunctionType func(m Message) MessageHandler
 type UnmarshalFunctionType func(data []byte) (message Message, err error)
 type MessageMapType map[int32]UnmarshalFunctionType
 type HandlerMapType map[int32]NewHandlerFunctionType
