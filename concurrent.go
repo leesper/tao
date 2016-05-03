@@ -128,12 +128,12 @@ func (cm *ConcurrentMap)Clear() {
   }
 }
 
-func (cm *ConcurrentMap)Size() int32 {
+func (cm *ConcurrentMap)Size() int {
   var size int32 = 0
   for _, s := range cm.shards {
     size += s.size()
   }
-  return size
+  return int(size)
 }
 
 func (cm *ConcurrentMap)shardFor(k interface{}) (*syncMap, error) {
