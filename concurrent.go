@@ -126,11 +126,11 @@ func (cm *ConcurrentMap)Clear() {
 }
 
 func (cm *ConcurrentMap)Size() int {
-  var size int32 = 0
+  var size int = 0
   for _, s := range cm.shards {
     size += s.size()
   }
-  return int(size)
+  return size
 }
 
 func (cm *ConcurrentMap)shardFor(k interface{}) (*syncMap, error) {
@@ -214,10 +214,10 @@ func (sm *syncMap) get(k interface{}) (interface{}, bool) {
   return v, ok
 }
 
-func (sm *syncMap) size() int32 {
+func (sm *syncMap) size() int {
   sm.RLock()
   defer sm.RUnlock()
-  return int32(len(sm.shard))
+  return len(sm.shard)
 }
 
 func (sm *syncMap) remove(k interface{}) bool {

@@ -90,8 +90,8 @@ func newLockMap1(initCap int) *lockMap {
 }
 
 func BenchmarkLockMapPut(b *testing.B) {
+	cm := newLockMap()
 	for n := 0; n < b.N; n++ {
-		cm := newLockMap()
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -108,8 +108,8 @@ func BenchmarkLockMapPut(b *testing.B) {
 }
 
 func BenchmarkConcurrentMapPut(b *testing.B) {
+	cm := NewConcurrentMap()
 	for n := 0; n < b.N; n++ {
-		cm := NewConcurrentMap()
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -126,9 +126,8 @@ func BenchmarkConcurrentMapPut(b *testing.B) {
 }
 
 func BenchmarkLockMapPutNoGrow(b *testing.B) {
+	cm := newLockMap1(listN * number)
 	for n := 0; n < b.N; n++ {
-		cm := newLockMap1(listN * number)
-
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -145,9 +144,8 @@ func BenchmarkLockMapPutNoGrow(b *testing.B) {
 }
 
 func BenchmarkConcurrentMapPutNoGrow(b *testing.B) {
+	cm := NewConcurrentMap()
 	for n := 0; n < b.N; n++ {
-		cm := NewConcurrentMap()
-
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -164,9 +162,8 @@ func BenchmarkConcurrentMapPutNoGrow(b *testing.B) {
 }
 
 func BenchmarkLockMapPut2(b *testing.B) {
+	cm := newLockMap()
 	for n := 0; n < b.N; n++ {
-		cm := newLockMap()
-
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -183,9 +180,8 @@ func BenchmarkLockMapPut2(b *testing.B) {
 }
 
 func BenchmarkConcurrentMapPut2(b *testing.B) {
+	cm := NewConcurrentMap()
 	for n := 0; n < b.N; n++ {
-		cm := NewConcurrentMap()
-
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -234,9 +230,8 @@ func BenchmarkConcurrentMapGet(b *testing.B) {
 }
 
 func BenchmarkLockMapPutAndGet(b *testing.B) {
+	cm := newLockMap()
 	for n := 0; n < b.N; n++ {
-		cm := newLockMap()
-
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -254,9 +249,8 @@ func BenchmarkLockMapPutAndGet(b *testing.B) {
 }
 
 func BenchmarkConcurrentMapPutAndGet(b *testing.B) {
+	cm := NewConcurrentMap()
 	for n := 0; n < b.N; n++ {
-		cm := NewConcurrentMap()
-
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
