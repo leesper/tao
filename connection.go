@@ -106,7 +106,7 @@ func (client *TcpConnection) Close() {
       client.onClose(client)
     }
     if client.Owner != nil {
-      delete(client.Owner.connections, client.netid)
+      client.Owner.connections.Remove(client.netid)
     }
   })
 }

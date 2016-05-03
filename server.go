@@ -8,7 +8,7 @@ import (
 
 type TcpServer struct {
   running *AtomicBoolean
-  connections map[int64]*TcpConnection
+  connections *ConcurrentMap
   netids *AtomicInt64
   timing *TimingWheel
   onConnect onConnectCallbackType
@@ -21,7 +21,7 @@ type TcpServer struct {
 func NewTcpServer() *TcpServer {
   return &TcpServer {
     running: NewAtomicBoolean(true),
-    connections: make(map[int64]*TcpConnection),  // todo: make it thread-safe
+    connections: NewConcurrentMap(),  // todo: make it thread-safe
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
   }
@@ -63,7 +63,7 @@ func (server *TcpServer) Start() {
     netid := server.netids.GetAndIncrement()
     tcpConn := NewTcpConnection(netid, server, rawConn, server.timing)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
-    server.connections[netid] = tcpConn
+    server.connections.Put(netid, tcpConn)
     log.Printf("Accepting client %s\n, net id %d", tcpConn, netid)
     tcpConn.Do()
   }
@@ -71,13 +71,14 @@ func (server *TcpServer) Start() {
 
 func (server *TcpServer) Close() {
   server.running.CompareAndSet(true, false)
-  for _, c := range server.connections {
+  for v := range server.connections.IterValues() {
+    c := v.(*TcpConnection)
     c.Close()
     c.wg.Wait()
   }
   os.Exit(0)
 }
 
-func (server *TcpServer) GetAllConnections() map[int64]*TcpConnection {
+func (server *TcpServer) GetAllConnections() *ConcurrentMap {
   return server.connections
 }
