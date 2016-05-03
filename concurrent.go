@@ -68,9 +68,15 @@ type ConcurrentMap struct {
 }
 
 func NewConcurrentMap() *ConcurrentMap {
-  return &ConcurrentMap{
+  cm := &ConcurrentMap{
     shards: make([]*syncMap, INITIAL_SHARD_SIZE),
   }
+  for i, _ := range cm.shards {
+    cm.shards[i] = &syncMap{
+      shard: make(map[interface{}]interface{}),
+    }
+  }
+  return cm
 }
 
 func (cm *ConcurrentMap)Put(k, v interface{}) error {
