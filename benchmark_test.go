@@ -90,8 +90,8 @@ func newLockMap1(initCap int) *lockMap {
 }
 
 func BenchmarkLockMapPut(b *testing.B) {
-	cm := newLockMap()
 	for n := 0; n < b.N; n++ {
+		cm := newLockMap()
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -107,20 +107,9 @@ func BenchmarkLockMapPut(b *testing.B) {
 	}
 }
 
-func BenchmarkMapPut(b *testing.B) {
-	cm := make(map[interface{}]interface{})
-	for n := 0; n < b.N; n++ {
-		for i := 0; i < listN; i++ {
-			for _, j := range list[i] {
-				cm[j] = j
-			}
-		}
-	}
-}
-
 func BenchmarkConcurrentMapPut(b *testing.B) {
-	cm := NewConcurrentMap()
 	for n := 0; n < b.N; n++ {
+		cm := NewConcurrentMap()
 		wg := new(sync.WaitGroup)
 		wg.Add(listN)
 		for i := 0; i < listN; i++ {
@@ -152,18 +141,6 @@ func BenchmarkLockMapPutNoGrow(b *testing.B) {
 			}()
 		}
 		wg.Wait()
-	}
-}
-
-func BenchmarkMapPutNoGrow(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		cm := make(map[interface{}]interface{}, listN*number)
-
-		for i := 0; i < listN; i++ {
-			for _, j := range list[i] {
-				cm[j] = j
-			}
-		}
 	}
 }
 
@@ -205,18 +182,6 @@ func BenchmarkLockMapPut2(b *testing.B) {
 	}
 }
 
-func BenchmarkMapPut2(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		cm := make(map[interface{}]interface{})
-
-		for i := 0; i < listN; i++ {
-			for _, j := range list[i] {
-				cm[strconv.Itoa(j.(int))] = j
-			}
-		}
-	}
-}
-
 func BenchmarkConcurrentMapPut2(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		cm := NewConcurrentMap()
@@ -249,16 +214,6 @@ func BenchmarkLockMapGet(b *testing.B) {
 			}()
 		}
 		wg.Wait()
-	}
-}
-
-func BenchmarkMapGet(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		for i := 0; i < listN; i++ {
-			for k := range list[0] {
-				_, _ = oMap[k]
-			}
-		}
 	}
 }
 
@@ -295,19 +250,6 @@ func BenchmarkLockMapPutAndGet(b *testing.B) {
 			}()
 		}
 		wg.Wait()
-	}
-}
-
-func BenchmarkMapPutAndGet(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		cm := make(map[interface{}]interface{})
-
-		for i := 0; i < listN; i++ {
-			for _, j := range list[i] {
-				cm[j] = j
-				_ = cm[j]
-			}
-		}
 	}
 }
 
