@@ -59,7 +59,7 @@ func (a *AtomicBoolean) CompareAndSet(oldValue, newValue bool) bool {
   return atomic.CompareAndSwapInt32((*int32)(a), o, n)
 }
 
-const INITIAL_SHARD_SIZE = 64
+const INITIAL_SHARD_SIZE = 16
 var ErrorNilKey = errors.New("Nil key")
 var ErrorNilValue = errors.New("Nil value")
 
@@ -72,9 +72,7 @@ func NewConcurrentMap() *ConcurrentMap {
     shards: make([]*syncMap, INITIAL_SHARD_SIZE),
   }
   for i, _ := range cm.shards {
-    cm.shards[i] = &syncMap{
-      shard: make(map[interface{}]interface{}),
-    }
+    cm.shards[i] = newSyncMap()
   }
   return cm
 }
@@ -91,7 +89,6 @@ func (cm *ConcurrentMap)Put(k, v interface{}) error {
   } else {
     shard.put(k, v)
   }
-
   return nil
 }
 

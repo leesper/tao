@@ -13,12 +13,12 @@ type Hashable interface {
 }
 
 var ErrorNotHashable = errors.New("Not hashable")
-
+var buf *bytes.Buffer = new(bytes.Buffer)
 func hashCode(k interface{}) (uint32, error) {
   h := fnv.New32a()
   var code uint32
   var err error
-  buf := new(bytes.Buffer)
+  buf.Reset()
   switch v := k.(type) {
   case bool:
     if v {
@@ -43,6 +43,7 @@ func hashCode(k interface{}) (uint32, error) {
   default:
     err = ErrorNotHashable
   }
+
   return code, err
 }
 
