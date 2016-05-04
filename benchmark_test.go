@@ -14,7 +14,6 @@ var (
 	list   [][]interface{}
 	cMap *ConcurrentMap
 	lMap *lockMap
-	oMap  map[interface{}]interface{}
 )
 
 func init() {
@@ -34,12 +33,10 @@ func init() {
 	}
 
 	cMap = NewConcurrentMap()
-	oMap = make(map[interface{}]interface{})
 	lMap = newLockMap()
 	for i := range list[0] {
 		cMap.Put(i, i)
 		lMap.put(i, i)
-		oMap[i] = i
 	}
 }
 
