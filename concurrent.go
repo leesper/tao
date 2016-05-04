@@ -1,7 +1,6 @@
 package tao
 
 import (
-  "errors"
   "sync"
   "sync/atomic"
 )
@@ -60,8 +59,6 @@ func (a *AtomicBoolean) CompareAndSet(oldValue, newValue bool) bool {
 }
 
 const INITIAL_SHARD_SIZE = 16
-var ErrorNilKey = errors.New("Nil key")
-var ErrorNilValue = errors.New("Nil value")
 
 type ConcurrentMap struct {
   shards []*syncMap

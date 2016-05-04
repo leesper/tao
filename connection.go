@@ -5,7 +5,6 @@ import (
   "log"
   "net"
   "encoding/binary"
-  "errors"
   "sync"
   "time"
   "io"
@@ -16,8 +15,6 @@ const (
   NLEN = 4
   MAXLEN = 1 << 23  // 8M
 )
-
-var ErrorWouldBlock error = errors.New("Would block")
 
 type TcpConnection struct {
   netid int64
@@ -299,8 +296,14 @@ func (client *TcpConnection) handleLoop() {
         return
 
       case handler := <-client.handlerRecvChan:
-        // todo: put handler into workers
-        handler.Process(client)
+        // todo: update heart beat info
+        if client.Owner != nil {
+          client.Owner.workerPool.Put(client.netid, func() {
+            handler.Process(client)
+          })
+        } else {
+          handler.Process(client)
+        }
 
       case timeoutcb := <-client.timing.TimeOutChan:
         // todo: put callback into workers

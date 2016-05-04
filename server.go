@@ -11,6 +11,7 @@ type TcpServer struct {
   connections *ConcurrentMap
   netids *AtomicInt64
   timing *TimingWheel
+  workerPool *WorkerPool
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
@@ -24,6 +25,7 @@ func NewTcpServer() *TcpServer {
     connections: NewConcurrentMap(),  // todo: make it thread-safe
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
+    workerPool: NewWorkerPool(10),
   }
 }
 

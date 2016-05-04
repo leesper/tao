@@ -3,7 +3,6 @@ package tao
 import (
   "hash"
   "hash/fnv"
-  "errors"
   "reflect"
   "unsafe"
 )
@@ -12,15 +11,11 @@ type Hashable interface {
 	HashCode() int32
 }
 
-var (
-  ErrorNotHashable error
-  h hash.Hash32
-)
+var h hash.Hash32
 
 const intSize = unsafe.Sizeof(1)
 
 func init() {
-  ErrorNotHashable = errors.New("Not hashable")
   h = fnv.New32a()
 }
 
