@@ -297,7 +297,7 @@ func (client *TcpConnection) handleLoop() {
 
       case handler := <-client.handlerRecvChan:
         // todo: update heart beat info
-        if client.Owner != nil {
+        if client.Owner != nil && handler != nil {
           client.Owner.workerPool.Put(client.netid, func() {
             handler.Process(client)
           })

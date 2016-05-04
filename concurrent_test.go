@@ -2,6 +2,7 @@ package tao
 
 import (
   "fmt"
+  "sync"
   "testing"
 )
 
@@ -95,6 +96,34 @@ func TestConcurrentMapString(t *testing.T) {
 
   cm.Clear()
   if !cm.IsEmpty() || cm.Size() != 0 {
-    t.Error("map size error, not empty")
+    t.Error("Map size error, not empty")
+  }
+}
+
+func TestAtomicInt64(t *testing.T) {
+  ai64 := NewAtomicInt64(0)
+  wg := &sync.WaitGroup{}
+  for i := 0; i < 3; i++ {
+    wg.Add(1)
+    go func() {
+      ai64.GetAndIncrement()
+      wg.Done()
+    }()
+  }
+  wg.Wait()
+  if ai64.Get() != 3 {
+    t.Error("Get and increment error")
+  }
+
+  for i := 0; i < 3; i++ {
+    wg.Add(1)
+    go func() {
+      ai64.GetAndDecrement()
+      wg.Done()
+    }()
+  }
+  wg.Wait()
+  if ai64.Get() != 0 {
+    t.Error("Get and decrement error")
   }
 }

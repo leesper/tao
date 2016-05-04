@@ -65,7 +65,7 @@ func (w *worker) start() {
     case <-w.closeChan:
       break
     case cb := <-w.callbackChan:
-      cb()
+        cb()
     }
   }
   close(w.callbackChan)
