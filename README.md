@@ -12,3 +12,4 @@ A Golang TCP framework
 6. [ ] Timers should support cancel() operation;  
 7. [x] Make connections map thread-safe;  
 8. [ ] Add tls support;   
+9. [ ] Heart beat and TLS support;  
