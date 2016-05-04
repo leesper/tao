@@ -89,6 +89,23 @@ func (cm *ConcurrentMap)Put(k, v interface{}) error {
   return nil
 }
 
+func (cm *ConcurrentMap)PutIfAbsent(k, v interface{}) error {
+  if isNil(k) {
+    return ErrorNilKey
+  }
+  if isNil(v) {
+    return ErrorNilValue
+  }
+  if shard, err := cm.shardFor(k); err != nil {
+    return err
+  } else {
+    if _, ok := shard.get(k); !ok {
+      shard.put(k, v)
+    }
+  }
+  return nil
+}
+
 func (cm *ConcurrentMap)Get(k interface{}) (interface{}, bool) {
   if isNil(k) {
     return nil, false
@@ -98,7 +115,18 @@ func (cm *ConcurrentMap)Get(k interface{}) (interface{}, bool) {
   } else {
     return shard.get(k)
   }
+}
 
+func (cm *ConcurrentMap) ContainsKey(k interface{}) (bool, error) {
+  if isNil(k) {
+    return false, ErrorNilKey
+  }
+  if shard, err := cm.shardFor(k); err != nil {
+    return false, err
+  } else {
+    _, ok := shard.get(k)
+    return ok, nil
+  }
 }
 
 func (cm *ConcurrentMap)Remove(k interface{}) bool {
@@ -194,7 +222,7 @@ type syncMap struct {
 
 func newSyncMap()*syncMap {
   return &syncMap{
-    shard: make(map[interface{}]interface{}),
+    shard: make(map[interface{}]interface{}, 1024),
   }
 }
 

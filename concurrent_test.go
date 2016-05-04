@@ -52,12 +52,14 @@ func TestConcurrentMapInt(t *testing.T) {
 func TestConcurrentMapString(t *testing.T) {
   cm := NewConcurrentMap()
   cm.Put("Lucy", "Product Manager")
-  cm.Put("Lily", "C++ Programmer")
-  cm.Put("Kathy", "Python Programmer")
-  cm.Put("Joana", "Golang Programmer")
-  cm.Put("Belle", "Java Programmer")
-  if cm.Size() != 5 {
-    t.Error("map size != 5")
+  cm.Put("Lily", "C++")
+  cm.Put("Kathy", "Python")
+  cm.Put("Joana", "Golang")
+  cm.Put("Belle", "Java")
+  cm.PutIfAbsent("Joana", "Objective-C")
+  cm.PutIfAbsent("Fiona", "Javascript")
+  if cm.Size() != 6 {
+    t.Error("map size != 6")
   }
   cm.Put("Lily", "Rust Programmer")
   fmt.Print("Keys: ")
@@ -74,6 +76,16 @@ func TestConcurrentMapString(t *testing.T) {
   if !ok {
     t.Error("Key Lucy not found")
   }
+
+  if ok, _ = cm.ContainsKey("Lucy"); ok {
+    t.Error("Key Lucy not removed")
+  }
+
+  if ok, _ = cm.ContainsKey("Joana"); !ok {
+    t.Error("Key Joana not found")
+  }
+
+
   fmt.Println()
   fmt.Print("Values: ")
   for val := range cm.IterValues() {
