@@ -305,43 +305,55 @@ func (client *TcpConnection)handleLoop() {
     client.Close()
   }()
 
-  if client.timing == nil {
-    for {
+  for {
+    if client.timing == nil {
       select {
-      case <-client.closeConnChan:
-        return
+        case <-client.closeConnChan:
+          return
 
-      case handler := <-client.handlerRecvChan:
-        // todo: put handler into workers
-        handler.Process(client)
+        case handler := <-client.handlerRecvChan:
+          if handler != nil {
+            if client.Owner != nil {
+              client.Owner.workerPool.Put(client.netid, func() {
+                handler.Process(client)
+              })
+            } else {
+              handler.Process(client)
+            }
+            // update heart beat timestamp
+            client.heartBeat = time.Now().UnixNano()
+          }
+
       }
-    }
-  } else {
-    for {
+    } else {
       select {
-      case <-client.closeConnChan:
-        return
+        case <-client.closeConnChan:
+          return
 
-      case handler := <-client.handlerRecvChan:
-        if client.Owner != nil && handler != nil {
-          client.Owner.workerPool.Put(client.netid, func() {
-            handler.Process(client)
-          })
-        } else {
-          handler.Process(client)
-        }
-        // update heart beat timestamp
-        client.heartBeat = time.Now().UnixNano()
+        case handler := <-client.handlerRecvChan:
+          if handler != nil {
+            if client.Owner != nil {
+              client.Owner.workerPool.Put(client.netid, func() {
+                handler.Process(client)
+              })
+            } else {
+              handler.Process(client)
+            }
+            // update heart beat timestamp
+            client.heartBeat = time.Now().UnixNano()
+          }
 
-      case timeoutcb := <-client.timing.TimeOutChan:
-        // put callback into workers
-        if client.Owner != nil && timeoutcb != nil {
-          client.Owner.workerPool.Put(client.netid, func() {
-            timeoutcb(time.Now())
-          })
-        } else {
-          timeoutcb(time.Now())
-        }
+        case timeoutcb := <-client.timing.TimeOutChan:
+          // put callback into workers
+          if timeoutcb != nil {
+            if client.Owner != nil {
+              client.Owner.workerPool.Put(client.netid, func() {
+                timeoutcb(time.Now())
+              })
+            } else {
+              timeoutcb(time.Now())
+            }
+          }
       }
     }
   }
