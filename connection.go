@@ -40,8 +40,8 @@ func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel, ke
     Owner: s,
     conn: c,
     wg: &sync.WaitGroup{},
-    messageSendChan: make(chan Message, 1024), // todo: make it configurable
-    handlerRecvChan: make(chan MessageHandler, 1024), // todo: make it configurable
+    messageSendChan: make(chan Message, 1024),
+    handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
     timing: t,
     heartBeat: time.Now().UnixNano(),
