@@ -1,9 +1,5 @@
 package tao
 
-import (
-  "log"
-)
-
 type WorkerPool struct {
   workers []*worker
   closeChan chan struct{}
@@ -59,7 +55,6 @@ func newWorker(i int, c int, closeChan chan struct{}) *worker {
 }
 
 func (w *worker) start() {
-  log.Printf("worker %d start\n", w.index)
   for {
     select {
     case <-w.closeChan:

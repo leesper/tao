@@ -80,8 +80,18 @@ func NewTimingWheel() *TimingWheel {
   return timingWheel
 }
 
-func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, cb func(time.Time)) {
-  heap.Push(&tw.timers, newTimer(when, interv, cb))
+func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, cb func(time.Time)) int {
+  timer := newTimer(when, interv, cb)
+  heap.Push(&tw.timers, timer)
+  return timer.index
+}
+
+func (tw *TimingWheel) Size() int {
+  return tw.timers.Len()
+}
+
+func (tw *TimingWheel) CancelTimer(timerId int) {
+  heap.Remove(&tw.timers, timerId)
 }
 
 func (tw *TimingWheel) Stop() {
@@ -129,6 +139,7 @@ func (tw *TimingWheel) start() {
         tw.TimeOutChan<- t.onTimeOut  // fixme: may block if channel full
       }
       tw.update(timers)
+
     }
   }
 }

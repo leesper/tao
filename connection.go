@@ -53,31 +53,39 @@ func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel, ke
     tcpConn.SetOnCloseCallback(s.onClose)
   }
   if keepAlive {
-    tcpConn.ActivateKeepAlive()
+    tcpConn.activateKeepAlive()
   }
   return tcpConn
 }
 
-func (client *TcpConnection)ActivateKeepAlive() {
+func (client *TcpConnection)activateKeepAlive() {
   if client.Owner != nil { // server mode, check
     MessageMap.Register(HeartBeatMessage{}.MessageNumber(), UnmarshalFunctionType(UnmarshalHeartBeatMessage))
     HandlerMap.Register(HeartBeatMessage{}.MessageNumber(), NewHandlerFunctionType(NewHeartBeatMessageHandler))
-    client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
+    var timerId int
+    timerId = client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
+      log.Printf("Checking client %s at %s", client, time.Now())
       last := client.heartBeat
       period := HEART_BEAT_PERIOD.Nanoseconds()
-      if last < (now.UnixNano() - 2 * period) {
-        log.Printf("Client %s netid %d timeout, shut it down\n", client, client.netid)
+      if last < time.Now().UnixNano() - 2 * period {
+        log.Printf("Client %s netid %d timeout, close it\n", client, client.netid)
         client.Close()
+        client.timing.CancelTimer(timerId)
       }
     })
   } else { // client mode, send
     client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
       msg := HeartBeatMessage {
-        Timestamp: now.UnixNano(),
+        Timestamp: time.Now().UnixNano(),
       }
+      log.Printf("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
       client.Write(msg)
     })
   }
+}
+
+func (client *TcpConnection)isServerMode() bool {
+  return client.Owner != nil
 }
 
 func (client *TcpConnection)SetOnConnectCallback(cb func(*TcpConnection) bool) {
@@ -129,7 +137,7 @@ func (client *TcpConnection)Close() {
     if (client.onClose != nil) {
       client.onClose(client)
     }
-    if client.Owner != nil {
+    if client.isServerMode() {
       client.Owner.connections.Remove(client.netid)
     }
   })
@@ -155,31 +163,32 @@ func (client *TcpConnection)Do() {
   client.startLoop(client.handleLoop)
 }
 
-func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) bool {
+func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) int {
   if client.timing != nil {
-    client.timing.AddTimer(t, 0, cb)
-    return true
+    return client.timing.AddTimer(t, 0, cb)
   }
-  return false
+  return -1
 }
 
-func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) bool {
+func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) int {
   delay := time.Now().Add(d)
   if client.timing != nil {
     return client.RunAt(delay, cb)
   }
-  return false
+  return -1
 }
 
-func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) bool {
+func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) int {
   delay := time.Now().Add(i)
   if client.timing != nil {
-    client.timing.AddTimer(delay, i, cb)
-    return true
+    return client.timing.AddTimer(delay, i, cb)
   }
-  return false
+  return -1
 }
 
+func (client *TcpConnection)CancelTimer(timerId int) {
+  client.timing.CancelTimer(timerId)
+}
 
 func (client *TcpConnection)startLoop(looper func()) {
   client.wg.Add(1)
@@ -244,12 +253,12 @@ func (client *TcpConnection)readLoop() {
     // deserialize message from bytes
     unmarshaler := MessageMap.get(msgType)
     if unmarshaler == nil {
-      log.Printf("Error undefined message %d\n", msgType)
+      log.Printf("Error: undefined message %d\n", msgType)
       continue
     }
     var msg Message
     if msg, err = unmarshaler(msgBytes); err != nil {
-      log.Printf("Error unmarshal message %d\n", msgType)
+      log.Printf("Error: unmarshal message %d - %s\n", msgType, err)
       continue
     }
 
@@ -322,6 +331,7 @@ func (client *TcpConnection)handleLoop() {
             }
             // update heart beat timestamp
             client.heartBeat = time.Now().UnixNano()
+            log.Println("update heart beat")
           }
 
       }
@@ -341,6 +351,7 @@ func (client *TcpConnection)handleLoop() {
             }
             // update heart beat timestamp
             client.heartBeat = time.Now().UnixNano()
+            log.Println("update heart beat")
           }
 
         case timeoutcb := <-client.timing.TimeOutChan:

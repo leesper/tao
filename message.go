@@ -60,7 +60,9 @@ type HeartBeatMessage struct {
 }
 
 func (hbm HeartBeatMessage) MarshalBinary() ([]byte, error) {
-  err := binary.Write(buf, binary.BigEndian, hbm.MessageNumber())
+  log.Println("marshalbinary ", hbm.Timestamp)
+  buf.Reset()
+  err := binary.Write(buf, binary.BigEndian, hbm.Timestamp)
   if err != nil {
     return nil, err
   }
@@ -81,6 +83,7 @@ func UnmarshalHeartBeatMessage(data []byte) (message Message, err error) {
   if err != nil {
     return nil, err
   }
+  log.Println("unmarshal timestamp ", timestamp)
   return HeartBeatMessage{
     Timestamp: timestamp,
   }, nil
@@ -98,7 +101,7 @@ func NewHeartBeatMessageHandler(msg Message) MessageHandler {
 
 func (handler HeartBeatMessageHandler) Process(client *TcpConnection) bool {
   heartBeatMessage := handler.message.(HeartBeatMessage)
-  log.Printf("Sending heart beat at %d\n", heartBeatMessage.Timestamp)
+  log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.heartBeat = heartBeatMessage.Timestamp
   return true
 }
