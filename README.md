@@ -1,6 +1,6 @@
 # Tao
 
-A Golang TCP framework
+A light-weight Golang TCP framework
 
 
 ## TODO list:  
