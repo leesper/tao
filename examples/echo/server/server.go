@@ -47,6 +47,6 @@ func main() {
   })
 
 
-  echoServer.Start()
+  echoServer.Start(false)
 
 }

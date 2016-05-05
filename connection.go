@@ -27,13 +27,14 @@ type TcpConnection struct {
   handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
   timing *TimingWheel
+  heartBeat int64
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
   onError onErrorCallbackType
 }
 
-func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel) *TcpConnection {
+func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel, keepAlive bool) *TcpConnection {
   tcpConn := &TcpConnection {
     netid: id,
     Owner: s,
@@ -43,6 +44,7 @@ func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel) *T
     handlerRecvChan: make(chan MessageHandler, 1024), // todo: make it configurable
     closeConnChan: make(chan struct{}),
     timing: t,
+    heartBeat: time.Now().UnixNano(),
   }
   if s != nil {
     tcpConn.SetOnConnectCallback(s.onConnect)
@@ -50,50 +52,75 @@ func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel) *T
     tcpConn.SetOnErrorCallback(s.onError)
     tcpConn.SetOnCloseCallback(s.onClose)
   }
+  if keepAlive {
+    tcpConn.ActivateKeepAlive()
+  }
   return tcpConn
 }
 
-func (client *TcpConnection) SetOnConnectCallback(cb func(*TcpConnection) bool) {
+func (client *TcpConnection)ActivateKeepAlive() {
+  if client.Owner != nil { // server mode, check
+    MessageMap.Register(HeartBeatMessage{}.MessageNumber(), UnmarshalFunctionType(UnmarshalHeartBeatMessage))
+    HandlerMap.Register(HeartBeatMessage{}.MessageNumber(), NewHandlerFunctionType(NewHeartBeatMessageHandler))
+    client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
+      last := client.heartBeat
+      period := HEART_BEAT_PERIOD.Nanoseconds()
+      if last < (now.UnixNano() - 2 * period) {
+        log.Printf("Client %s netid %d timeout, shut it down\n", client, client.netid)
+        client.Close()
+      }
+    })
+  } else { // client mode, send
+    client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
+      msg := HeartBeatMessage {
+        Timestamp: now.UnixNano(),
+      }
+      client.Write(msg)
+    })
+  }
+}
+
+func (client *TcpConnection)SetOnConnectCallback(cb func(*TcpConnection) bool) {
   if cb != nil {
     client.onConnect = onConnectCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) SetOnMessageCallback(cb func(Message, *TcpConnection)) {
+func (client *TcpConnection)SetOnMessageCallback(cb func(Message, *TcpConnection)) {
   if cb != nil {
     client.onMessage = onMessageCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) SetOnErrorCallback(cb func()) {
+func (client *TcpConnection)SetOnErrorCallback(cb func()) {
   if cb != nil {
     client.onError = onErrorCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) Wait() {
+func (client *TcpConnection)Wait() {
   client.wg.Wait()
 }
 
-func (client *TcpConnection) SetOnCloseCallback(cb func(*TcpConnection)) {
+func (client *TcpConnection)SetOnCloseCallback(cb func(*TcpConnection)) {
   if cb != nil {
     client.onClose = onCloseCallbackType(cb)
   }
 }
 
-func (client *TcpConnection) RemoteAddr() net.Addr {
+func (client *TcpConnection)RemoteAddr() net.Addr {
   return client.conn.RemoteAddr()
 }
 
-func (client *TcpConnection) SetName(n string) {
+func (client *TcpConnection)SetName(n string) {
   client.name = n
 }
 
-func (client *TcpConnection) String() string {
+func (client *TcpConnection)String() string {
   return client.name
 }
 
-func (client *TcpConnection) Close() {
+func (client *TcpConnection)Close() {
   client.closeOnce.Do(func() {
     close(client.closeConnChan)
     close(client.messageSendChan)
@@ -108,7 +135,7 @@ func (client *TcpConnection) Close() {
   })
 }
 
-func (client *TcpConnection) Write(msg Message) (err error) {
+func (client *TcpConnection)Write(msg Message) (err error) {
   select {
   case client.messageSendChan<- msg:
     return nil
@@ -117,7 +144,7 @@ func (client *TcpConnection) Write(msg Message) (err error) {
   }
 }
 
-func (client *TcpConnection) Do() {
+func (client *TcpConnection)Do() {
   if client.onConnect != nil && !client.onConnect(client) {
     log.Fatalln("Error onConnect()\n")
   }
@@ -128,7 +155,7 @@ func (client *TcpConnection) Do() {
   client.startLoop(client.handleLoop)
 }
 
-func (client *TcpConnection) RunAt(t time.Time, cb func(t time.Time)) bool {
+func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) bool {
   if client.timing != nil {
     client.timing.AddTimer(t, 0, cb)
     return true
@@ -136,7 +163,7 @@ func (client *TcpConnection) RunAt(t time.Time, cb func(t time.Time)) bool {
   return false
 }
 
-func (client *TcpConnection) RunAfter(d time.Duration, cb func(t time.Time)) bool {
+func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) bool {
   delay := time.Now().Add(d)
   if client.timing != nil {
     return client.RunAt(delay, cb)
@@ -144,7 +171,7 @@ func (client *TcpConnection) RunAfter(d time.Duration, cb func(t time.Time)) boo
   return false
 }
 
-func (client *TcpConnection) RunEvery(i time.Duration, cb func(t time.Time)) bool {
+func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) bool {
   delay := time.Now().Add(i)
   if client.timing != nil {
     client.timing.AddTimer(delay, i, cb)
@@ -154,7 +181,7 @@ func (client *TcpConnection) RunEvery(i time.Duration, cb func(t time.Time)) boo
 }
 
 
-func (client *TcpConnection) startLoop(looper func()) {
+func (client *TcpConnection)startLoop(looper func()) {
   client.wg.Add(1)
   go func() {
     looper()
@@ -164,7 +191,7 @@ func (client *TcpConnection) startLoop(looper func()) {
 
 // use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
 // todo: maybe a special codec?
-func (client *TcpConnection) readLoop() {
+func (client *TcpConnection)readLoop() {
   defer func() {
     recover()
     client.Close()
@@ -243,7 +270,7 @@ func (client *TcpConnection) readLoop() {
   }
 }
 
-func (client *TcpConnection) writeLoop() {
+func (client *TcpConnection)writeLoop() {
   defer func() {
     recover()
     client.Close()
@@ -272,7 +299,7 @@ func (client *TcpConnection) writeLoop() {
   }
 }
 
-func (client *TcpConnection) handleLoop() {
+func (client *TcpConnection)handleLoop() {
   defer func() {
     recover()
     client.Close()

@@ -1,7 +1,10 @@
 package tao
 
 import (
+  "bytes"
   "encoding"
+  "log"
+  "encoding/binary"
 )
 
 type Message interface {
@@ -29,12 +32,16 @@ func (mm *MessageMapType) get(msgType int32) UnmarshalFunctionType {
   return nil
 }
 
-var MessageMap MessageMapType
-var HandlerMap HandlerMapType
+var (
+  MessageMap MessageMapType
+  HandlerMap HandlerMapType
+  buf *bytes.Buffer
+)
 
 func init() {
   MessageMap = make(MessageMapType)
   HandlerMap = make(HandlerMapType)
+  buf = new(bytes.Buffer)
 }
 
 func (hm *HandlerMapType) Register(msgType int32, fn NewHandlerFunctionType) {
@@ -46,4 +53,52 @@ func (hm *HandlerMapType) get(msgType int32) NewHandlerFunctionType {
     return fn
   }
   return nil
+}
+
+type HeartBeatMessage struct {
+  Timestamp int64
+}
+
+func (hbm HeartBeatMessage) MarshalBinary() ([]byte, error) {
+  err := binary.Write(buf, binary.BigEndian, hbm.MessageNumber())
+  if err != nil {
+    return nil, err
+  }
+  return buf.Bytes(), nil
+}
+
+func (hbm HeartBeatMessage) MessageNumber() int32 {
+  return 0
+}
+
+func UnmarshalHeartBeatMessage(data []byte) (message Message, err error) {
+  var timestamp int64
+  if data == nil {
+    return nil, ErrorNilData
+  }
+  buf := bytes.NewReader(data)
+  err = binary.Read(buf, binary.BigEndian, &timestamp)
+  if err != nil {
+    return nil, err
+  }
+  return HeartBeatMessage{
+    Timestamp: timestamp,
+  }, nil
+}
+
+type HeartBeatMessageHandler struct {
+  message Message
+}
+
+func NewHeartBeatMessageHandler(msg Message) MessageHandler {
+  return HeartBeatMessageHandler{
+    message: msg,
+  }
+}
+
+func (handler HeartBeatMessageHandler) Process(client *TcpConnection) bool {
+  heartBeatMessage := handler.message.(HeartBeatMessage)
+  log.Printf("Sending heart beat at %d\n", heartBeatMessage.Timestamp)
+  client.heartBeat = heartBeatMessage.Timestamp
+  return true
 }

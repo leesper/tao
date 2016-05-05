@@ -6,8 +6,6 @@ import (
   "github.com/leesper/tao"
 )
 
-var ErrorNilData error = errors.New("Nil data")
-
 type EchoMessage struct {
   Message string
 }
@@ -22,7 +20,7 @@ func (em EchoMessage) MessageNumber() int32 {
 
 func UnmarshalEchoMessage(data []byte) (message tao.Message, err error) {
   if data == nil {
-    return nil, ErrorNilData
+    return nil, tao.ErrorNilData
   }
   msg := string(data)
   echo := EchoMessage{

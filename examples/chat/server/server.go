@@ -42,5 +42,5 @@ func main() {
     log.Printf("Closing chat client\n")
   })
 
-  chatServer.Start()
+  chatServer.Start(false)
 }

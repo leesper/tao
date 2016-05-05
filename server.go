@@ -45,7 +45,7 @@ func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
   server.onClose = onCloseCallbackType(cb)
 }
 
-func (server *TcpServer) Start() {
+func (server *TcpServer) Start(keepAlive bool) {
   tcpAddr, err := net.ResolveTCPAddr("tcp", ":18341")
   if err != nil {
     log.Fatalln(err)
@@ -63,7 +63,7 @@ func (server *TcpServer) Start() {
       log.Fatalln(err)
     }
     netid := server.netids.GetAndIncrement()
-    tcpConn := NewTcpConnection(netid, server, rawConn, server.timing)
+    tcpConn := NewTcpConnection(netid, server, rawConn, server.timing, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections.Put(netid, tcpConn)
     log.Printf("Accepting client %s\n, net id %d", tcpConn, netid)
