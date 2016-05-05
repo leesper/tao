@@ -15,9 +15,9 @@ type EchoServer struct {
   *tao.TcpServer
 }
 
-func NewEchoServer() *EchoServer {
+func NewEchoServer(addr string) *EchoServer {
   return &EchoServer {
-    tao.NewTcpServer(),
+    tao.NewTcpServer(addr),
   }
 }
 
@@ -27,7 +27,7 @@ func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), tao.UnmarshalFunctionType(echo.UnmarshalEchoMessage))
   tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), tao.NewHandlerFunctionType(echo.NewEchoMessageHandler))
 
-  echoServer := NewEchoServer()
+  echoServer := NewEchoServer(":18342")
 
   echoServer.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")

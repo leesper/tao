@@ -2,7 +2,6 @@ package echo
 
 import (
   "log"
-  "errors"
   "github.com/leesper/tao"
 )
 

@@ -12,6 +12,7 @@ type TcpServer struct {
   netids *AtomicInt64
   timing *TimingWheel
   workerPool *WorkerPool
+  address string
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
   onClose onCloseCallbackType
@@ -19,13 +20,14 @@ type TcpServer struct {
 }
 
 // todo: make it configurable
-func NewTcpServer() *TcpServer {
+func NewTcpServer(addr string) *TcpServer {
   return &TcpServer {
     running: NewAtomicBoolean(true),
-    connections: NewConcurrentMap(),  // todo: make it thread-safe
+    connections: NewConcurrentMap(),
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
     workerPool: NewWorkerPool(10),
+    address: addr,
   }
 }
 
@@ -46,7 +48,7 @@ func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
 }
 
 func (server *TcpServer) Start(keepAlive bool) {
-  tcpAddr, err := net.ResolveTCPAddr("tcp", ":18341")
+  tcpAddr, err := net.ResolveTCPAddr("tcp", server.address)
   if err != nil {
     log.Fatalln(err)
   }

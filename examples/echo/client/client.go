@@ -15,7 +15,7 @@ func init() {
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), tao.UnmarshalFunctionType(echo.UnmarshalEchoMessage))
 
-  serverAddr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:18341")
+  serverAddr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:18342")
   if err != nil {
     log.Fatalln(err)
   }
@@ -25,7 +25,7 @@ func main() {
     log.Fatalln(err)
   }
 
-  tcpConnection := tao.NewTcpConnection(0, nil, tcpConn, tao.NewTimingWheel())
+  tcpConnection := tao.NewTcpConnection(0, nil, tcpConn, tao.NewTimingWheel(), false)
 
   tcpConnection.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")
