@@ -67,7 +67,7 @@ func (client *TcpConnection)activateKeepAlive() {
       log.Printf("Checking client %s at %s", client, time.Now())
       last := client.heartBeat
       period := HEART_BEAT_PERIOD.Nanoseconds()
-      if last < time.Now().UnixNano() - 2 * period {
+      if last < now.UnixNano() - 2 * period {
         log.Printf("Client %s netid %d timeout, close it\n", client, client.netid)
         client.Close()
         client.timing.CancelTimer(timerId)
@@ -76,7 +76,7 @@ func (client *TcpConnection)activateKeepAlive() {
   } else { // client mode, send
     client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
       msg := HeartBeatMessage {
-        Timestamp: time.Now().UnixNano(),
+        Timestamp: now.UnixNano(),
       }
       log.Printf("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
       client.Write(msg)
@@ -322,7 +322,7 @@ func (client *TcpConnection)handleLoop() {
 
         case handler := <-client.handlerRecvChan:
           if handler != nil {
-            if client.Owner != nil {
+            if client.isServerMode() {
               client.Owner.workerPool.Put(client.netid, func() {
                 handler.Process(client)
               })
@@ -331,7 +331,6 @@ func (client *TcpConnection)handleLoop() {
             }
             // update heart beat timestamp
             client.heartBeat = time.Now().UnixNano()
-            log.Println("update heart beat")
           }
 
       }
@@ -342,7 +341,7 @@ func (client *TcpConnection)handleLoop() {
 
         case handler := <-client.handlerRecvChan:
           if handler != nil {
-            if client.Owner != nil {
+            if client.isServerMode() {
               client.Owner.workerPool.Put(client.netid, func() {
                 handler.Process(client)
               })
@@ -351,13 +350,12 @@ func (client *TcpConnection)handleLoop() {
             }
             // update heart beat timestamp
             client.heartBeat = time.Now().UnixNano()
-            log.Println("update heart beat")
           }
 
         case timeoutcb := <-client.timing.TimeOutChan:
           // put callback into workers
           if timeoutcb != nil {
-            if client.Owner != nil {
+            if client.isServerMode() {
               client.Owner.workerPool.Put(client.netid, func() {
                 timeoutcb(time.Now())
               })

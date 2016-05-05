@@ -60,7 +60,6 @@ type HeartBeatMessage struct {
 }
 
 func (hbm HeartBeatMessage) MarshalBinary() ([]byte, error) {
-  log.Println("marshalbinary ", hbm.Timestamp)
   buf.Reset()
   err := binary.Write(buf, binary.BigEndian, hbm.Timestamp)
   if err != nil {
@@ -83,7 +82,6 @@ func UnmarshalHeartBeatMessage(data []byte) (message Message, err error) {
   if err != nil {
     return nil, err
   }
-  log.Println("unmarshal timestamp ", timestamp)
   return HeartBeatMessage{
     Timestamp: timestamp,
   }, nil
