@@ -45,15 +45,15 @@ func (tq *timerQueueType) Pop() interface{} {
 type timerType struct {
   expiration time.Time
   interval time.Duration
-  onTimeOut onTimeOutCallbackType
+  onTimeOut *onTimeOutCallbackType
   index int  // for container/heap
 }
 
-func newTimer(when time.Time, interv time.Duration, cb func(time.Time)) *timerType {
+func newTimer(when time.Time, interv time.Duration, cb *onTimeOutCallbackType) *timerType {
   return &timerType{
     expiration: when,
     interval: interv,
-    onTimeOut: onTimeOutCallbackType(cb),
+    onTimeOut: cb,
   }
 }
 
@@ -62,7 +62,7 @@ func (t *timerType) isRepeat() bool {
 }
 
 type TimingWheel struct {
-  TimeOutChan chan onTimeOutCallbackType
+  TimeOutChan chan *onTimeOutCallbackType
   timers timerQueueType
   ticker *time.Ticker
   quit chan struct{}
@@ -70,7 +70,7 @@ type TimingWheel struct {
 
 func NewTimingWheel() *TimingWheel {
   timingWheel := &TimingWheel{
-    TimeOutChan: make(chan onTimeOutCallbackType, 1024),
+    TimeOutChan: make(chan *onTimeOutCallbackType, 1024),
     timers: make(timerQueueType, 0),
     ticker: time.NewTicker(time.Millisecond),
     quit: make(chan struct{}),
@@ -80,7 +80,7 @@ func NewTimingWheel() *TimingWheel {
   return timingWheel
 }
 
-func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, cb func(time.Time)) int {
+func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, cb *onTimeOutCallbackType) int {
   timer := newTimer(when, interv, cb)
   heap.Push(&tw.timers, timer)
   return timer.index

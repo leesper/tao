@@ -21,13 +21,31 @@ type TcpServer struct {
 
 // todo: make it configurable
 func NewTcpServer(addr string) *TcpServer {
-  return &TcpServer {
+  server := &TcpServer {
     running: NewAtomicBoolean(true),
     connections: NewConcurrentMap(),
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
     workerPool: NewWorkerPool(10),
     address: addr,
+  }
+  go server.timeOutLoop()
+  return server
+}
+
+func (server *TcpServer) timeOutLoop() {
+  for {
+    select {
+    case timeout := <-server.timing.TimeOutChan:
+      netid := timeout.identifier.(int64)
+      if conn, ok := server.connections.Get(netid); ok {
+        tcpConn := conn.(*TcpConnection)
+        tcpConn.timeOutChan<- timeout
+      } else {
+        // fixme: if client invalid, cancel timer
+        log.Printf("Invalid client %d\n", netid)
+      }
+    }
   }
 }
 
@@ -65,7 +83,7 @@ func (server *TcpServer) Start(keepAlive bool) {
       log.Fatalln(err)
     }
     netid := server.netids.GetAndIncrement()
-    tcpConn := NewTcpConnection(netid, server, rawConn, server.timing, keepAlive)
+    tcpConn := ServerTcpConnection(netid, server, rawConn, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections.Put(netid, tcpConn)
     log.Printf("Accepting client %s\n, net id %d", tcpConn, netid)

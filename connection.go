@@ -23,10 +23,11 @@ type TcpConnection struct {
   name string
   closeOnce sync.Once
   wg *sync.WaitGroup
+  timing *TimingWheel
   messageSendChan chan Message
   handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
-  timing *TimingWheel
+  timeOutChan chan *onTimeOutCallbackType
   heartBeat int64
   onConnect onConnectCallbackType
   onMessage onMessageCallbackType
@@ -34,23 +35,17 @@ type TcpConnection struct {
   onError onErrorCallbackType
 }
 
-func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel, keepAlive bool) *TcpConnection {
+func ClientTcpConnection(id int64, c *net.TCPConn, t *TimingWheel, keepAlive bool) *TcpConnection {
   tcpConn := &TcpConnection {
     netid: id,
-    Owner: s,
     conn: c,
     wg: &sync.WaitGroup{},
+    timing: t,
     messageSendChan: make(chan Message, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
-    timing: t,
+    timeOutChan: make(chan *onTimeOutCallbackType),
     heartBeat: time.Now().UnixNano(),
-  }
-  if s != nil {
-    tcpConn.SetOnConnectCallback(s.onConnect)
-    tcpConn.SetOnMessageCallback(s.onMessage)
-    tcpConn.SetOnErrorCallback(s.onError)
-    tcpConn.SetOnCloseCallback(s.onClose)
   }
   if keepAlive {
     tcpConn.activateKeepAlive()
@@ -58,8 +53,32 @@ func NewTcpConnection(id int64, s *TcpServer, c *net.TCPConn, t *TimingWheel, ke
   return tcpConn
 }
 
+func ServerTcpConnection(id int64, s *TcpServer, c *net.TCPConn, keepAlive bool) *TcpConnection {
+  tcpConn := &TcpConnection {
+    netid: id,
+    Owner: s,
+    conn: c,
+    wg: &sync.WaitGroup{},
+    timing: s.timing,
+    messageSendChan: make(chan Message, 1024),
+    handlerRecvChan: make(chan MessageHandler, 1024),
+    closeConnChan: make(chan struct{}),
+    timeOutChan: make(chan *onTimeOutCallbackType),
+    heartBeat: time.Now().UnixNano(),
+  }
+  tcpConn.SetOnConnectCallback(s.onConnect)
+  tcpConn.SetOnMessageCallback(s.onMessage)
+  tcpConn.SetOnErrorCallback(s.onError)
+  tcpConn.SetOnCloseCallback(s.onClose)
+
+  if keepAlive {
+    tcpConn.activateKeepAlive()
+  }
+  return tcpConn
+}
+
 func (client *TcpConnection)activateKeepAlive() {
-  if client.Owner != nil { // server mode, check
+  if client.isServerMode() { // server mode, check
     MessageMap.Register(HeartBeatMessage{}.MessageNumber(), UnmarshalFunctionType(UnmarshalHeartBeatMessage))
     HandlerMap.Register(HeartBeatMessage{}.MessageNumber(), NewHandlerFunctionType(NewHeartBeatMessageHandler))
     var timerId int
@@ -133,6 +152,7 @@ func (client *TcpConnection)Close() {
     close(client.closeConnChan)
     close(client.messageSendChan)
     close(client.handlerRecvChan)
+    close(client.timeOutChan)
     client.conn.Close()
     if (client.onClose != nil) {
       client.onClose(client)
@@ -164,8 +184,9 @@ func (client *TcpConnection)Do() {
 }
 
 func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) int {
+  timeout := newOnTimeOutCallbackType(client.netid, cb)
   if client.timing != nil {
-    return client.timing.AddTimer(t, 0, cb)
+    return client.timing.AddTimer(t, 0, timeout)
   }
   return -1
 }
@@ -180,8 +201,9 @@ func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) int 
 
 func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) int {
   delay := time.Now().Add(i)
+  timeout := newOnTimeOutCallbackType(client.netid, cb)
   if client.timing != nil {
-    return client.timing.AddTimer(delay, i, cb)
+    return client.timing.AddTimer(delay, i, timeout)
   }
   return -1
 }
@@ -309,61 +331,64 @@ func (client *TcpConnection)writeLoop() {
 }
 
 func (client *TcpConnection)handleLoop() {
+  if client.isServerMode() {
+    client.handleServerMode()
+  } else {
+    client.handleClientMode()
+  }
+}
+
+func (client *TcpConnection)handleServerMode() {
   defer func() {
     recover()
     client.Close()
   }()
 
   for {
-    if client.timing == nil {
-      select {
-        case <-client.closeConnChan:
-          return
+    select {
+    case <-client.closeConnChan:
+      return
 
-        case handler := <-client.handlerRecvChan:
-          if handler != nil {
-            if client.isServerMode() {
-              client.Owner.workerPool.Put(client.netid, func() {
-                handler.Process(client)
-              })
-            } else {
-              handler.Process(client)
-            }
-            // update heart beat timestamp
-            client.heartBeat = time.Now().UnixNano()
-          }
-
+    case handler := <-client.handlerRecvChan:
+      if handler != nil {
+        client.Owner.workerPool.Put(client.netid, func() {
+          handler.Process(client)
+        })
+        // update heart beat timestamp
+        client.heartBeat = time.Now().UnixNano()
       }
-    } else {
-      select {
-        case <-client.closeConnChan:
-          return
 
-        case handler := <-client.handlerRecvChan:
-          if handler != nil {
-            if client.isServerMode() {
-              client.Owner.workerPool.Put(client.netid, func() {
-                handler.Process(client)
-              })
-            } else {
-              handler.Process(client)
-            }
-            // update heart beat timestamp
-            client.heartBeat = time.Now().UnixNano()
-          }
-
-        case timeoutcb := <-client.timing.TimeOutChan:
-          // put callback into workers
-          if timeoutcb != nil {
-            if client.isServerMode() {
-              client.Owner.workerPool.Put(client.netid, func() {
-                timeoutcb(time.Now())
-              })
-            } else {
-              timeoutcb(time.Now())
-            }
-          }
+    case timeoutcb := <-client.timeOutChan:
+      if timeoutcb != nil {
+        client.Owner.workerPool.Put(client.netid, func() {
+          timeoutcb.onTimeOut(time.Now())
+        })
       }
+    }
+  }
+}
+
+func (client *TcpConnection)handleClientMode() {
+  defer func() {
+    recover()
+    client.Close()
+  }()
+
+  for {
+    select {
+    case <-client.closeConnChan:
+      return
+
+    case handler := <-client.handlerRecvChan:
+      if handler != nil {
+        handler.Process(client)
+        // update heart beat timestamp
+        client.heartBeat = time.Now().UnixNano()
+      }
+
+    case timeoutcb := <-client.timing.TimeOutChan:
+      // put callback into workers
+      timeoutcb.onTimeOut(time.Now())
     }
   }
 }
