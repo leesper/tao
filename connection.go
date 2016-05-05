@@ -323,7 +323,6 @@ func (client *TcpConnection)handleLoop() {
         return
 
       case handler := <-client.handlerRecvChan:
-        // todo: update heart beat info
         if client.Owner != nil && handler != nil {
           client.Owner.workerPool.Put(client.netid, func() {
             handler.Process(client)
@@ -331,10 +330,18 @@ func (client *TcpConnection)handleLoop() {
         } else {
           handler.Process(client)
         }
+        // update heart beat timestamp
+        client.heartBeat = time.Now().UnixNano()
 
       case timeoutcb := <-client.timing.TimeOutChan:
-        // todo: put callback into workers
-        timeoutcb(time.Now())
+        // put callback into workers
+        if client.Owner != nil && timeoutcb != nil {
+          client.Owner.workerPool.Put(client.netid, func() {
+            timeoutcb(time.Now())
+          })
+        } else {
+          timeoutcb(time.Now())
+        }
       }
     }
   }
