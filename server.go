@@ -13,10 +13,10 @@ type TcpServer struct {
   timing *TimingWheel
   workerPool *WorkerPool
   address string
-  onConnect onConnectCallbackType
-  onMessage onMessageCallbackType
-  onClose onCloseCallbackType
-  onError onErrorCallbackType
+  onConnect onConnectFunc
+  onMessage onMessageFunc
+  onClose onCloseFunc
+  onError onErrorFunc
 }
 
 // todo: make it configurable
@@ -37,7 +37,7 @@ func (server *TcpServer) timeOutLoop() {
   for {
     select {
     case timeout := <-server.timing.TimeOutChan:
-      netid := timeout.identifier.(int64)
+      netid := timeout.ExtraData.(int64)
       if conn, ok := server.connections.Get(netid); ok {
         tcpConn := conn.(*TcpConnection)
         tcpConn.timeOutChan<- timeout
@@ -50,19 +50,19 @@ func (server *TcpServer) timeOutLoop() {
 }
 
 func (server *TcpServer) SetOnConnectCallback(cb func(*TcpConnection) bool) {
-  server.onConnect = onConnectCallbackType(cb)
+  server.onConnect = onConnectFunc(cb)
 }
 
 func (server *TcpServer) SetOnMessageCallback(cb func(Message, *TcpConnection)) {
-  server.onMessage = onMessageCallbackType(cb)
+  server.onMessage = onMessageFunc(cb)
 }
 
 func (server *TcpServer) SetOnErrorCallback(cb func()) {
-  server.onError = onErrorCallbackType(cb)
+  server.onError = onErrorFunc(cb)
 }
 
 func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
-  server.onClose = onCloseCallbackType(cb)
+  server.onClose = onCloseFunc(cb)
 }
 
 func (server *TcpServer) Start(keepAlive bool) {

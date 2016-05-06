@@ -27,12 +27,12 @@ type TcpConnection struct {
   messageSendChan chan Message
   handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
-  timeOutChan chan *onTimeOutCallbackType
+  timeOutChan chan *OnTimeOut
   heartBeat int64
-  onConnect onConnectCallbackType
-  onMessage onMessageCallbackType
-  onClose onCloseCallbackType
-  onError onErrorCallbackType
+  onConnect onConnectFunc
+  onMessage onMessageFunc
+  onClose onCloseFunc
+  onError onErrorFunc
 }
 
 func ClientTcpConnection(id int64, c *net.TCPConn, t *TimingWheel, keepAlive bool) *TcpConnection {
@@ -44,7 +44,7 @@ func ClientTcpConnection(id int64, c *net.TCPConn, t *TimingWheel, keepAlive boo
     messageSendChan: make(chan Message, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
-    timeOutChan: make(chan *onTimeOutCallbackType),
+    timeOutChan: make(chan *OnTimeOut),
     heartBeat: time.Now().UnixNano(),
   }
   if keepAlive {
@@ -63,7 +63,7 @@ func ServerTcpConnection(id int64, s *TcpServer, c *net.TCPConn, keepAlive bool)
     messageSendChan: make(chan Message, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
-    timeOutChan: make(chan *onTimeOutCallbackType),
+    timeOutChan: make(chan *OnTimeOut),
     heartBeat: time.Now().UnixNano(),
   }
   tcpConn.SetOnConnectCallback(s.onConnect)
@@ -109,19 +109,19 @@ func (client *TcpConnection)isServerMode() bool {
 
 func (client *TcpConnection)SetOnConnectCallback(cb func(*TcpConnection) bool) {
   if cb != nil {
-    client.onConnect = onConnectCallbackType(cb)
+    client.onConnect = onConnectFunc(cb)
   }
 }
 
 func (client *TcpConnection)SetOnMessageCallback(cb func(Message, *TcpConnection)) {
   if cb != nil {
-    client.onMessage = onMessageCallbackType(cb)
+    client.onMessage = onMessageFunc(cb)
   }
 }
 
 func (client *TcpConnection)SetOnErrorCallback(cb func()) {
   if cb != nil {
-    client.onError = onErrorCallbackType(cb)
+    client.onError = onErrorFunc(cb)
   }
 }
 
@@ -131,7 +131,7 @@ func (client *TcpConnection)Wait() {
 
 func (client *TcpConnection)SetOnCloseCallback(cb func(*TcpConnection)) {
   if cb != nil {
-    client.onClose = onCloseCallbackType(cb)
+    client.onClose = onCloseFunc(cb)
   }
 }
 
@@ -184,7 +184,7 @@ func (client *TcpConnection)Do() {
 }
 
 func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) int {
-  timeout := newOnTimeOutCallbackType(client.netid, cb)
+  timeout := NewOnTimeOut(client.netid, cb)
   if client.timing != nil {
     return client.timing.AddTimer(t, 0, timeout)
   }
@@ -201,7 +201,7 @@ func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) int 
 
 func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) int {
   delay := time.Now().Add(i)
-  timeout := newOnTimeOutCallbackType(client.netid, cb)
+  timeout := NewOnTimeOut(client.netid, cb)
   if client.timing != nil {
     return client.timing.AddTimer(delay, i, timeout)
   }
@@ -361,7 +361,7 @@ func (client *TcpConnection)handleServerMode() {
     case timeoutcb := <-client.timeOutChan:
       if timeoutcb != nil {
         client.Owner.workerPool.Put(client.netid, func() {
-          timeoutcb.onTimeOut(time.Now())
+          timeoutcb.Callback(time.Now())
         })
       }
     }
@@ -388,7 +388,7 @@ func (client *TcpConnection)handleClientMode() {
 
     case timeoutcb := <-client.timing.TimeOutChan:
       // put callback into workers
-      timeoutcb.onTimeOut(time.Now())
+      timeoutcb.Callback(time.Now())
     }
   }
 }

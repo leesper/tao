@@ -31,7 +31,7 @@ func (wp *WorkerPool) Put(k interface{}, cb func()) error {
   if code, err = hashCode(k); err != nil {
     return err
   }
-  return wp.workers[code & uint32(len(wp.workers) - 1)].put(workerCallbackType(cb))
+  return wp.workers[code & uint32(len(wp.workers) - 1)].put(workerFunc(cb))
 }
 
 func (wp *WorkerPool) Close() {
@@ -40,14 +40,14 @@ func (wp *WorkerPool) Close() {
 
 type worker struct {
   index int
-  callbackChan chan workerCallbackType
+  callbackChan chan workerFunc
   closeChan chan struct{}
 }
 
 func newWorker(i int, c int, closeChan chan struct{}) *worker {
   w := &worker{
     index: i,
-    callbackChan: make(chan workerCallbackType, c),
+    callbackChan: make(chan workerFunc, c),
     closeChan: closeChan,
   }
   go w.start()
@@ -66,7 +66,7 @@ func (w *worker) start() {
   close(w.callbackChan)
 }
 
-func (w *worker) put(cb workerCallbackType) error {
+func (w *worker) put(cb workerFunc) error {
   select {
   case w.callbackChan<- cb:
     return nil

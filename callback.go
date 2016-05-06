@@ -4,20 +4,20 @@ import (
   "time"
 )
 
-type onConnectCallbackType func(*TcpConnection) bool
-type onMessageCallbackType func(Message, *TcpConnection)
-type onCloseCallbackType func(*TcpConnection)
-type onErrorCallbackType func()
-type workerCallbackType func()
+type onConnectFunc func(*TcpConnection) bool
+type onMessageFunc func(Message, *TcpConnection)
+type onCloseFunc func(*TcpConnection)
+type onErrorFunc func()
+type workerFunc func()
 
-type onTimeOutCallbackType struct {
-  identifier interface{}
-  onTimeOut func(time.Time)
+type OnTimeOut struct {
+  Callback func(time.Time)
+  ExtraData interface{}
 }
 
-func newOnTimeOutCallbackType(id interface{}, cb func(time.Time)) *onTimeOutCallbackType {
-  return &onTimeOutCallbackType{
-    identifier: id,
-    onTimeOut: cb,
+func NewOnTimeOut(extra interface{}, cb func(time.Time)) *OnTimeOut {
+  return &OnTimeOut{
+    Callback: cb,
+    ExtraData: extra,
   }
 }
