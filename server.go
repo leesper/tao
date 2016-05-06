@@ -42,7 +42,6 @@ func (server *TcpServer) timeOutLoop() {
         tcpConn := conn.(*TcpConnection)
         tcpConn.timeOutChan<- timeout
       } else {
-        // fixme: if client invalid, cancel timer
         log.Printf("Invalid client %d\n", netid)
       }
     }
@@ -81,7 +80,7 @@ func (server *TcpServer) Start(keepAlive bool) {
     tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections.Put(netid, tcpConn)
-    log.Printf("Accepting client %s\n, net id %d", tcpConn, netid)
+    log.Printf("Accepting client %s, net id %d\n", tcpConn, netid)
     tcpConn.Do()
   }
 }

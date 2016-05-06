@@ -6,8 +6,10 @@ import (
   "container/heap"
 )
 
+var timerIds *AtomicInt64
 func init() {
   log.SetFlags(log.Lshortfile | log.LstdFlags)
+  timerIds = NewAtomicInt64(0)
 }
 
 type timerQueueType []*timerType
@@ -43,6 +45,7 @@ func (tq *timerQueueType) Pop() interface{} {
 }
 
 type timerType struct {
+  id int64
   expiration time.Time
   interval time.Duration
   timeout *OnTimeOut
@@ -51,6 +54,7 @@ type timerType struct {
 
 func newTimer(when time.Time, interv time.Duration, to *OnTimeOut) *timerType {
   return &timerType{
+    id: timerIds.GetAndIncrement(),
     expiration: when,
     interval: interv,
     timeout: to,
@@ -80,18 +84,40 @@ func NewTimingWheel() *TimingWheel {
   return timingWheel
 }
 
-func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, to *OnTimeOut) int {
+// func (tw *TimingWheel) PrintTimers() {
+//   fmt.Println("NUM OF TIMERS: ", tw.Size())
+//   for _, t := range tw.timers {
+//     fmt.Printf("id %d, netid %d\n", t.id, t.timeout.ExtraData.(int64))
+//   }
+// }
+
+func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, to *OnTimeOut) int64 {
+  if to == nil {
+    return int64(-1)
+  }
   timer := newTimer(when, interv, to)
+  timer.timeout.Id = timer.id
   heap.Push(&tw.timers, timer)
-  return timer.index
+  log.Println("AddTimer id ", timer.id)
+  return timer.id
 }
 
 func (tw *TimingWheel) Size() int {
   return tw.timers.Len()
 }
 
-func (tw *TimingWheel) CancelTimer(timerId int) {
-  heap.Remove(&tw.timers, timerId)
+func (tw *TimingWheel) CancelTimer(timerId int64) {
+  log.Println("CancelTimer ", timerId)
+  index := -1
+  for _, t := range tw.timers {
+    if t.id == timerId {
+      index = t.index
+      break
+    }
+  }
+  if index >= 0 { // found
+    heap.Remove(&tw.timers, index)
+  }
 }
 
 func (tw *TimingWheel) Stop() {

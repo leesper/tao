@@ -15,5 +15,5 @@ var (
 )
 
 const (
-  HEART_BEAT_PERIOD = 10 * time.Second
+  HEART_BEAT_PERIOD = 5 * time.Second
 )

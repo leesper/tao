@@ -12,6 +12,7 @@ type workerFunc func()
 
 type OnTimeOut struct {
   Callback func(time.Time)
+  Id int64
   ExtraData interface{}
 }
 

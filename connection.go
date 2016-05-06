@@ -29,6 +29,7 @@ type TcpConnection struct {
   closeConnChan chan struct{}
   timeOutChan chan *OnTimeOut
   heartBeat int64
+  pendingTimers []int64
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
@@ -46,6 +47,7 @@ func ClientTCPConnection(id int64, c net.Conn, t *TimingWheel, keepAlive bool) *
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
     heartBeat: time.Now().UnixNano(),
+    pendingTimers: []int64{},
   }
   if keepAlive {
     tcpConn.activateKeepAlive()
@@ -65,6 +67,7 @@ func ServerTCPConnection(id int64, s *TcpServer, c net.Conn, keepAlive bool) *Tc
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
     heartBeat: time.Now().UnixNano(),
+    pendingTimers: []int64{},
   }
   tcpConn.SetOnConnectCallback(s.onConnect)
   tcpConn.SetOnMessageCallback(s.onMessage)
@@ -81,15 +84,13 @@ func (client *TcpConnection)activateKeepAlive() {
   if client.isServerMode() { // server mode, check
     MessageMap.Register(HeartBeatMessage{}.MessageNumber(), UnmarshalFunctionType(UnmarshalHeartBeatMessage))
     HandlerMap.Register(HeartBeatMessage{}.MessageNumber(), NewHandlerFunctionType(NewHeartBeatMessageHandler))
-    var timerId int
-    timerId = client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
-      log.Printf("Checking client %s at %s", client, time.Now())
+    client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
+      log.Printf("Checking client %d at %s", client.netid, time.Now())
       last := client.heartBeat
       period := HEART_BEAT_PERIOD.Nanoseconds()
       if last < now.UnixNano() - 2 * period {
         log.Printf("Client %s netid %d timeout, close it\n", client, client.netid)
         client.Close()
-        client.timing.CancelTimer(timerId)
       }
     })
   } else { // client mode, send
@@ -160,6 +161,11 @@ func (client *TcpConnection)Close() {
     if client.isServerMode() {
       client.Owner.connections.Remove(client.netid)
     }
+
+    log.Println(client.pendingTimers)
+    for _, id := range client.pendingTimers {
+      client.CancelTimer(id)
+    }
   })
 }
 
@@ -183,32 +189,33 @@ func (client *TcpConnection)Do() {
   client.startLoop(client.handleLoop)
 }
 
-func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) int {
+func (client *TcpConnection)RunAt(t time.Time, cb func(t time.Time)) {
   timeout := NewOnTimeOut(client.netid, cb)
   if client.timing != nil {
-    return client.timing.AddTimer(t, 0, timeout)
+    id := client.timing.AddTimer(t, 0, timeout)
+    client.pendingTimers = append(client.pendingTimers, id)
   }
-  return -1
 }
 
-func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) int {
+func (client *TcpConnection)RunAfter(d time.Duration, cb func(t time.Time)) {
   delay := time.Now().Add(d)
   if client.timing != nil {
-    return client.RunAt(delay, cb)
+    client.RunAt(delay, cb)
   }
-  return -1
 }
 
-func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) int {
+func (client *TcpConnection)RunEvery(i time.Duration, cb func(t time.Time)) {
+  log.Println("netid ", client.netid)
   delay := time.Now().Add(i)
   timeout := NewOnTimeOut(client.netid, cb)
   if client.timing != nil {
-    return client.timing.AddTimer(delay, i, timeout)
+    id := client.timing.AddTimer(delay, i, timeout)
+    log.Println("RunEvery timer ", id)
+    client.pendingTimers = append(client.pendingTimers, id)
   }
-  return -1
 }
 
-func (client *TcpConnection)CancelTimer(timerId int) {
+func (client *TcpConnection)CancelTimer(timerId int64) {
   client.timing.CancelTimer(timerId)
 }
 
