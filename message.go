@@ -13,7 +13,7 @@ type Message interface {
 }
 
 type MessageHandler interface {
-  Process(client *TcpConnection) bool
+  Process(client *TCPConnection) bool
 }
 
 type NewHandlerFunctionType func(m Message) MessageHandler
@@ -97,7 +97,7 @@ func NewHeartBeatMessageHandler(msg Message) MessageHandler {
   }
 }
 
-func (handler HeartBeatMessageHandler) Process(client *TcpConnection) bool {
+func (handler HeartBeatMessageHandler) Process(client *TCPConnection) bool {
   heartBeatMessage := handler.message.(HeartBeatMessage)
   log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.heartBeat = heartBeatMessage.Timestamp

@@ -40,11 +40,11 @@ func NewChatMessageHandler(msg tao.Message) tao.MessageHandler {
   }
 }
 
-func (handler ChatMessageHandler) Process(client *tao.TcpConnection) bool {
+func (handler ChatMessageHandler) Process(client *tao.TCPConnection) bool {
   if client.Owner != nil {
     connections := client.Owner.GetAllConnections()
     for v := range connections.IterValues() {
-      c := v.(*tao.TcpConnection)
+      c := v.(*tao.TCPConnection)
       c.Write(handler.message)
     }
     return true

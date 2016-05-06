@@ -4,15 +4,19 @@ import (
   "log"
   "net"
   "os"
+  "time"
+  "crypto/tls"
+  "crypto/rand"
 )
 
-type TcpServer struct {
+type TCPServer struct {
   running *AtomicBoolean
   connections *ConcurrentMap
   netids *AtomicInt64
   timing *TimingWheel
   workerPool *WorkerPool
   address string
+  tlsMode bool
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
@@ -20,26 +24,27 @@ type TcpServer struct {
 }
 
 // todo: make it configurable
-func NewTcpServer(addr string) *TcpServer {
-  server := &TcpServer {
+func NewTCPServer(addr string, tls bool) *TCPServer {
+  server := &TCPServer {
     running: NewAtomicBoolean(true),
     connections: NewConcurrentMap(),
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
     workerPool: NewWorkerPool(10),
     address: addr,
+    tlsMode: tls,
   }
   go server.timeOutLoop()
   return server
 }
 
-func (server *TcpServer) timeOutLoop() {
+func (server *TCPServer) timeOutLoop() {
   for {
     select {
     case timeout := <-server.timing.TimeOutChan:
       netid := timeout.ExtraData.(int64)
       if conn, ok := server.connections.Get(netid); ok {
-        tcpConn := conn.(*TcpConnection)
+        tcpConn := conn.(*TCPConnection)
         tcpConn.timeOutChan<- timeout
       } else {
         log.Printf("Invalid client %d\n", netid)
@@ -48,33 +53,54 @@ func (server *TcpServer) timeOutLoop() {
   }
 }
 
-func (server *TcpServer) SetOnConnectCallback(cb func(*TcpConnection) bool) {
+func (server *TCPServer) SetOnConnectCallback(cb func(*TCPConnection) bool) {
   server.onConnect = onConnectFunc(cb)
 }
 
-func (server *TcpServer) SetOnMessageCallback(cb func(Message, *TcpConnection)) {
+func (server *TCPServer) SetOnMessageCallback(cb func(Message, *TCPConnection)) {
   server.onMessage = onMessageFunc(cb)
 }
 
-func (server *TcpServer) SetOnErrorCallback(cb func()) {
+func (server *TCPServer) SetOnErrorCallback(cb func()) {
   server.onError = onErrorFunc(cb)
 }
 
-func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
+func (server *TCPServer) SetOnCloseCallback(cb func(*TCPConnection)) {
   server.onClose = onCloseFunc(cb)
 }
 
-func (server *TcpServer) Start(keepAlive bool) {
+func (server *TCPServer) loadTLSConfig() tls.Config {
+  var config tls.Config
+  cert, err := tls.LoadX509KeyPair("certfile", "keyfile")
+  if err != nil {
+    log.Fatalln(err)
+  }
+  config = tls.Config{Certificates: []tls.Certificate{cert}}
+  now := time.Now()
+  config.Time = func() time.Time { return now }
+  config.Rand = rand.Reader
+  return config
+}
+
+func (server *TCPServer) Start(keepAlive bool) {
   listener, err := net.Listen("tcp", server.address)
   if err != nil {
     log.Fatalln(err)
   }
   defer listener.Close()
 
+  var config tls.Config
+  if server.tlsMode {
+    config = server.loadTLSConfig()
+  }
+
   for server.running.Get() {
     conn, err := listener.Accept()
     if err != nil {
       log.Fatalln(err)
+    }
+    if server.tlsMode {
+      conn = tls.Server(conn, &config)
     }
     netid := server.netids.GetAndIncrement()
     tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
@@ -85,16 +111,16 @@ func (server *TcpServer) Start(keepAlive bool) {
   }
 }
 
-func (server *TcpServer) Close() {
+func (server *TCPServer) Close() {
   server.running.CompareAndSet(true, false)
   for v := range server.connections.IterValues() {
-    c := v.(*TcpConnection)
+    c := v.(*TCPConnection)
     c.Close()
     c.wg.Wait()
   }
   os.Exit(0)
 }
 
-func (server *TcpServer) GetAllConnections() *ConcurrentMap {
+func (server *TCPServer) GetAllConnections() *ConcurrentMap {
   return server.connections
 }

@@ -12,12 +12,12 @@ func init() {
 }
 
 type EchoServer struct {
-  *tao.TcpServer
+  *tao.TCPServer
 }
 
 func NewEchoServer(addr string) *EchoServer {
   return &EchoServer {
-    tao.NewTcpServer(addr),
+    tao.NewTCPServer(addr, false),
   }
 }
 
@@ -29,7 +29,7 @@ func main() {
 
   echoServer := NewEchoServer(":18342")
 
-  echoServer.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
+  echoServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -38,11 +38,11 @@ func main() {
     log.Printf("On error\n")
   })
 
-  echoServer.SetOnCloseCallback(func(client *tao.TcpConnection) {
+  echoServer.SetOnCloseCallback(func(client *tao.TCPConnection) {
     log.Printf("Closing client\n")
   })
 
-  echoServer.SetOnMessageCallback(func(msg tao.Message, client *tao.TcpConnection) {
+  echoServer.SetOnMessageCallback(func(msg tao.Message, client *tao.TCPConnection) {
     log.Printf("Receving message\n")
   })
 

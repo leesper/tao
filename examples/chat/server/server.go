@@ -12,12 +12,12 @@ func init() {
 }
 
 type ChatServer struct {
-  *tao.TcpServer
+  *tao.TCPServer
 }
 
 func NewChatServer(addr string) *ChatServer {
   return &ChatServer {
-    tao.NewTcpServer(addr),
+    tao.NewTCPServer(addr, false),
   }
 }
 
@@ -29,7 +29,7 @@ func main() {
 
   chatServer := NewChatServer(":18341")
 
-  chatServer.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
+  chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -38,7 +38,7 @@ func main() {
     log.Printf("On error\n")
   })
 
-  chatServer.SetOnCloseCallback(func(client *tao.TcpConnection) {
+  chatServer.SetOnCloseCallback(func(client *tao.TCPConnection) {
     log.Printf("Closing chat client\n")
   })
 
