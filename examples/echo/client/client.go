@@ -25,7 +25,7 @@ func main() {
     log.Fatalln(err)
   }
 
-  tcpConnection := tao.NewTcpConnection(0, nil, tcpConn, tao.NewTimingWheel(), false)
+  tcpConnection := tao.ClientTCPConnection(0, tcpConn, tao.NewTimingWheel(), false)
 
   tcpConnection.SetOnConnectCallback(func(client *tao.TcpConnection) bool {
     log.Printf("On connect\n")

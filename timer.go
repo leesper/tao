@@ -84,21 +84,12 @@ func NewTimingWheel() *TimingWheel {
   return timingWheel
 }
 
-// func (tw *TimingWheel) PrintTimers() {
-//   fmt.Println("NUM OF TIMERS: ", tw.Size())
-//   for _, t := range tw.timers {
-//     fmt.Printf("id %d, netid %d\n", t.id, t.timeout.ExtraData.(int64))
-//   }
-// }
-
 func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, to *OnTimeOut) int64 {
   if to == nil {
     return int64(-1)
   }
   timer := newTimer(when, interv, to)
-  timer.timeout.Id = timer.id
   heap.Push(&tw.timers, timer)
-  log.Println("AddTimer id ", timer.id)
   return timer.id
 }
 
@@ -107,7 +98,6 @@ func (tw *TimingWheel) Size() int {
 }
 
 func (tw *TimingWheel) CancelTimer(timerId int64) {
-  log.Println("CancelTimer ", timerId)
   index := -1
   for _, t := range tw.timers {
     if t.id == timerId {
