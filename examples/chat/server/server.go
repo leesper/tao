@@ -3,6 +3,7 @@ package main
 import (
   "runtime"
   "log"
+  "fmt"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
 )
@@ -27,7 +28,7 @@ func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
   tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
-  chatServer := NewChatServer(":18341")
+  chatServer := NewChatServer(fmt.Sprintf("%s:%d", tao.ServerConf.IP, tao.ServerConf.Port))
 
   chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
     log.Printf("On connect\n")

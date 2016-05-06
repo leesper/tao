@@ -7,7 +7,7 @@ type WorkerPool struct {
 
 func NewWorkerPool(vol int) *WorkerPool {
   if vol <= 0 {
-    vol = 10
+    vol = ServerConf.Workers
   }
 
   pool := &WorkerPool{

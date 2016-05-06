@@ -11,6 +11,6 @@ A light-weight Golang TCP framework
 5.  [ ] Add more use-case examples;  
 6.  [x] Timers should support cancel() operation;  
 7.  [x] Make connections map thread-safe;  
-8.  [ ] Add TLS support;   
+8.  [x] Add TLS support;   
 9.  [x] Heart beat support;  
 10. [ ] Custom codec support;  

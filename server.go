@@ -30,7 +30,7 @@ func NewTCPServer(addr string, tls bool) *TCPServer {
     connections: NewConcurrentMap(),
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
-    workerPool: NewWorkerPool(10),
+    workerPool: NewWorkerPool(ServerConf.Workers),
     address: addr,
     tlsMode: tls,
   }
@@ -71,7 +71,7 @@ func (server *TCPServer) SetOnCloseCallback(cb func(*TCPConnection)) {
 
 func (server *TCPServer) loadTLSConfig() tls.Config {
   var config tls.Config
-  cert, err := tls.LoadX509KeyPair("certfile", "keyfile")
+  cert, err := tls.LoadX509KeyPair(ServerConf.Certfile, ServerConf.Keyfile)
   if err != nil {
     log.Fatalln(err)
   }
