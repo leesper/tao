@@ -19,7 +19,7 @@ const (
 type TcpConnection struct {
   netid int64
   Owner *TcpServer
-  conn *net.TCPConn
+  conn net.Conn
   name string
   closeOnce sync.Once
   wg *sync.WaitGroup
@@ -35,7 +35,7 @@ type TcpConnection struct {
   onError onErrorFunc
 }
 
-func ClientTcpConnection(id int64, c *net.TCPConn, t *TimingWheel, keepAlive bool) *TcpConnection {
+func ClientTCPConnection(id int64, c net.Conn, t *TimingWheel, keepAlive bool) *TcpConnection {
   tcpConn := &TcpConnection {
     netid: id,
     conn: c,
@@ -53,7 +53,7 @@ func ClientTcpConnection(id int64, c *net.TCPConn, t *TimingWheel, keepAlive boo
   return tcpConn
 }
 
-func ServerTcpConnection(id int64, s *TcpServer, c *net.TCPConn, keepAlive bool) *TcpConnection {
+func ServerTCPConnection(id int64, s *TcpServer, c net.Conn, keepAlive bool) *TcpConnection {
   tcpConn := &TcpConnection {
     netid: id,
     Owner: s,

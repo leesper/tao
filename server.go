@@ -66,24 +66,19 @@ func (server *TcpServer) SetOnCloseCallback(cb func(*TcpConnection)) {
 }
 
 func (server *TcpServer) Start(keepAlive bool) {
-  tcpAddr, err := net.ResolveTCPAddr("tcp", server.address)
-  if err != nil {
-    log.Fatalln(err)
-  }
-
-  listener, err := net.ListenTCP("tcp", tcpAddr)
+  listener, err := net.Listen("tcp", server.address)
   if err != nil {
     log.Fatalln(err)
   }
   defer listener.Close()
 
   for server.running.Get() {
-    rawConn, err := listener.AcceptTCP()
+    conn, err := listener.Accept()
     if err != nil {
       log.Fatalln(err)
     }
     netid := server.netids.GetAndIncrement()
-    tcpConn := ServerTcpConnection(netid, server, rawConn, keepAlive)
+    tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     server.connections.Put(netid, tcpConn)
     log.Printf("Accepting client %s\n, net id %d", tcpConn, netid)
