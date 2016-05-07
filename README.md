@@ -7,7 +7,7 @@ Features
 --------
 1. 完全异步的读，写以及消息处理 Completely asynchronous reading, writing and message handling;
 2. 负载均衡的工作者协程池 Load-balanced worker go-routine pool;
-3. 并发和原子数据结构 Concurrent data structure and atomic data types;
+3. 并发数据结构和原子数据类型 Concurrent data structure and atomic data types;
 4. 毫秒精度的定时器功能 Millisecond-precision timer function;
 5. 传输层安全支持 Transport layer security support;
 6. 应用层心跳协议 Application-level heart-beating protocol;
