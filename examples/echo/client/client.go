@@ -45,22 +45,14 @@ func main() {
     log.Printf("%s\n", echoMessage.Message)
   })
 
-  tcpConnection.RunAt(
-    time.Now().Add(1 * time.Second),
-    func(t time.Time) {
-      log.Printf("RUN AT %s\n", t)
-    })
-
-  tcpConnection.RunAfter(
-    3 * time.Second,
-    func(t time.Time) {
-      log.Printf("RUN AFTER 3 SECONDS AT %s, THEN CLOSE\n", t)
-      tcpConnection.Close()
-    })
-
   echoMessage := echo.EchoMessage{
     Message: "hello, world",
   }
+
+  tcpConnection.RunAt(time.Now().Add(time.Second * 2), func(now time.Time) {
+    log.Println("Closing after 2 seconds")
+    tcpConnection.Close()
+  })
 
   tcpConnection.Do()
 
