@@ -29,6 +29,7 @@ func main() {
   tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
   chatServer := NewChatServer(fmt.Sprintf("%s:%d", tao.ServerConf.IP, tao.ServerConf.Port))
+  defer chatServer.Close()
 
   chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
     log.Printf("On connect\n")

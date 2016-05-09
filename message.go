@@ -55,6 +55,8 @@ func (hm *HandlerMapType) get(msgType int32) NewHandlerFunctionType {
   return nil
 }
 
+/* Message number 0 is the preserved message
+for long-term connection keeping alive */
 type HeartBeatMessage struct {
   Timestamp int64
 }

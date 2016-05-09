@@ -1,3 +1,10 @@
+/* Data types and structues for concurrent use:
+AtomicInt32
+AtomicInt64
+AtomicBoolean
+ConcurrentMap
+*/
+
 package tao
 
 import (

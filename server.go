@@ -23,7 +23,6 @@ type TCPServer struct {
   onError onErrorFunc
 }
 
-// todo: make it configurable
 func NewTCPServer(addr string, tls bool) *TCPServer {
   server := &TCPServer {
     running: NewAtomicBoolean(true),
@@ -38,6 +37,9 @@ func NewTCPServer(addr string, tls bool) *TCPServer {
   return server
 }
 
+/* Retrieve the extra data(i.e. net id), and then redispatch
+timeout callbacks to corresponding client connection, this
+prevents one client from running callbacks of other clients */
 func (server *TCPServer) timeOutLoop() {
   for {
     select {
@@ -100,8 +102,11 @@ func (server *TCPServer) Start(keepAlive bool) {
       log.Fatalln(err)
     }
     if server.tlsMode {
-      conn = tls.Server(conn, &config)
+      conn = tls.Server(conn, &config)  // wrap as a tls connection
     }
+    
+    /* Create a TCP connection upon accepting a new client, assign an net id
+    to it, then manage it in connections map, and start it */
     netid := server.netids.GetAndIncrement()
     tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())

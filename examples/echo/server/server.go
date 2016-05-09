@@ -28,6 +28,7 @@ func main() {
   tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), tao.NewHandlerFunctionType(echo.NewEchoMessageHandler))
 
   echoServer := NewEchoServer(":18342")
+  defer echoServer.Close()
 
   echoServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
     log.Printf("On connect\n")

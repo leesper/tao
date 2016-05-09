@@ -178,6 +178,8 @@ func (client *TCPConnection)Write(msg Message) (err error) {
   }
 }
 
+/* If onConnect() returns true, start three go-routines for each client:
+readLoop(), writeLoop() and handleLoop() */
 func (client *TCPConnection)Do() {
   if client.onConnect != nil && !client.onConnect(client) {
     log.Fatalln("Error onConnect()\n")
@@ -229,7 +231,8 @@ func (client *TCPConnection)startLoop(looper func()) {
   }()
 }
 
-// use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
+/* readLoop() blocking read from connection, deserialize bytes into message,
+then find corresponding handler, put it into channel */
 func (client *TCPConnection)readLoop() {
   defer func() {
     recover()
@@ -246,6 +249,7 @@ func (client *TCPConnection)readLoop() {
     default:
     }
 
+    // use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
     _, err := io.ReadFull(client.conn, typeBytes)
     if err != nil {
       log.Printf("Error: failed to read message type - %s", err)
@@ -309,6 +313,8 @@ func (client *TCPConnection)readLoop() {
   }
 }
 
+/* writeLoop() receive message from channel, serialize it into bytes,
+then blocking write into connection */
 func (client *TCPConnection)writeLoop() {
   defer func() {
     recover()
@@ -338,6 +344,9 @@ func (client *TCPConnection)writeLoop() {
   }
 }
 
+/* handleLoop() handles business logic in server or client mode:
+(1) server mode - put handler or timeout callback into worker go-routines
+(2) client mode - run handler or timeout callback in handleLoop() go-routine */
 func (client *TCPConnection)handleLoop() {
   if client.isServerMode() {
     client.handleServerMode()
@@ -358,7 +367,7 @@ func (client *TCPConnection)handleServerMode() {
       return
 
     case handler := <-client.handlerRecvChan:
-      if handler != nil {
+      if !isNil(handler) {
         client.Owner.workerPool.Put(client.netid, func() {
           handler.Process(client)
         })
@@ -388,10 +397,10 @@ func (client *TCPConnection)handleClientMode() {
       return
 
     case handler := <-client.handlerRecvChan:
-      if handler != nil {
-        handler.Process(client)
+      if !isNil(handler) {
         // update heart beat timestamp
         client.heartBeat = time.Now().UnixNano()
+        handler.Process(client)
       }
 
     case timeout := <-client.timing.TimeOutChan:

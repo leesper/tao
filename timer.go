@@ -12,6 +12,7 @@ func init() {
   timerIds = NewAtomicInt64(0)
 }
 
+// timerQueueType is a priority queue based on container/heap
 type timerQueueType []*timerType
 
 func (tq timerQueueType) Len() int {
@@ -44,6 +45,9 @@ func (tq *timerQueueType) Pop() interface{} {
   return timer
 }
 
+/* 'expiration' is the time when timer time out, if 'interval' > 0
+the timer will time out periodically, 'timeout' contains the callback
+to be called when times out */
 type timerType struct {
   id int64
   expiration time.Time
