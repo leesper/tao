@@ -17,21 +17,39 @@ type TCPServer struct {
   workerPool *WorkerPool
   address string
   tlsMode bool
+  certFile string
+  keyFile string
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
   onError onErrorFunc
 }
 
-func NewTCPServer(addr string, tls bool) *TCPServer {
+func NewTCPServer(addr string) *TCPServer {
   server := &TCPServer {
     running: NewAtomicBoolean(true),
     connections: NewConcurrentMap(),
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
-    workerPool: NewWorkerPool(ServerConf.Workers),
+    workerPool: NewWorkerPool(WORKERS),
     address: addr,
-    tlsMode: tls,
+    tlsMode: false,
+  }
+  go server.timeOutLoop()
+  return server
+}
+
+func NewTLSTCPServer(addr, cert, key string) *TCPServer {
+  server := &TCPServer {
+    running: NewAtomicBoolean(true),
+    connections: NewConcurrentMap(),
+    netids: NewAtomicInt64(0),
+    timing: NewTimingWheel(),
+    workerPool: NewWorkerPool(WORKERS),
+    address: addr,
+    tlsMode: true,
+    certFile: cert,
+    keyFile: key,
   }
   go server.timeOutLoop()
   return server
@@ -73,7 +91,7 @@ func (server *TCPServer) SetOnCloseCallback(cb func(*TCPConnection)) {
 
 func (server *TCPServer) loadTLSConfig() tls.Config {
   var config tls.Config
-  cert, err := tls.LoadX509KeyPair(ServerConf.Certfile, ServerConf.Keyfile)
+  cert, err := tls.LoadX509KeyPair(server.certFile, server.keyFile)
   if err != nil {
     log.Fatalln(err)
   }
@@ -110,12 +128,12 @@ func (server *TCPServer) Start(keepAlive bool) {
     netid := server.netids.GetAndIncrement()
     tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
-    if server.connections.Size() < ServerConf.MaxConns {
+    if server.connections.Size() < MAX_CONNECTIONS {
       server.connections.Put(netid, tcpConn)
       log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn, netid, server.connections.Size())
       tcpConn.Do()
     } else {
-      log.Printf("WARN, MAX CONNS %d, refuse\n", ServerConf.MaxConns)
+      log.Printf("WARN, MAX CONNS %d, refuse\n", MAX_CONNECTIONS)
       tcpConn.Close()
     }
   }

@@ -18,7 +18,7 @@ type ChatServer struct {
 
 func NewChatServer(addr string) *ChatServer {
   return &ChatServer {
-    tao.NewTCPServer(addr, false),
+    tao.NewTCPServer(addr),
   }
 }
 
@@ -28,7 +28,7 @@ func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
   tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
-  chatServer := NewChatServer(fmt.Sprintf("%s:%d", tao.ServerConf.IP, tao.ServerConf.Port))
+  chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
   defer chatServer.Close()
 
   chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {

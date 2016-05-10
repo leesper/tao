@@ -16,4 +16,6 @@ var (
 
 const (
   HEART_BEAT_PERIOD = 5 * time.Second
+  WORKERS = 10
+  MAX_CONNECTIONS = 1000
 )

@@ -17,7 +17,7 @@ type EchoServer struct {
 
 func NewEchoServer(addr string) *EchoServer {
   return &EchoServer {
-    tao.NewTCPServer(addr, false),
+    tao.NewTCPServer(addr),
   }
 }
 
