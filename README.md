@@ -117,7 +117,6 @@ Features
     }
 
 
-### TODO list:  
-1.  [x] Make it configurable by JSON;    
-2.  [ ] Support Google flatbuffers;  
-3.  [ ] Add more use-case examples;     
+### TODO list:   
+1.  [ ] Support Google flatbuffers;  
+2.  [ ] Add more use-case examples;     
