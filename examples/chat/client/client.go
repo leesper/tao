@@ -2,7 +2,6 @@ package main
 
 import (
   "log"
-  "net"
   "fmt"
   "bufio"
   "os"
@@ -17,18 +16,7 @@ func init() {
 func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
 
-  serverAddr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:18341")
-  if err != nil {
-    log.Fatalln(err)
-  }
-
-  tcpConn, err := net.DialTCP("tcp", nil, serverAddr)
-
-  if err != nil {
-    log.Fatalln(err)
-  }
-
-  tcpConnection := tao.ClientTCPConnection(0, tcpConn, tao.NewTimingWheel(), true)
+  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18341", tao.NewTimingWheel(), true)
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client *tao.TCPConnection) bool {

@@ -36,7 +36,11 @@ type TCPConnection struct {
   onError onErrorFunc
 }
 
-func ClientTCPConnection(id int64, c net.Conn, t *TimingWheel, keepAlive bool) *TCPConnection {
+func ClientTCPConnection(id int64, addr string, t *TimingWheel, keepAlive bool) *TCPConnection {
+  c, err := net.Dial("tcp", addr)
+  if err != nil {
+    log.Fatalln(err)
+  }
   tcpConn := &TCPConnection {
     netid: id,
     conn: c,
