@@ -12,6 +12,7 @@ type ServerConfig struct {
   Heartbeat int
   Certfile string
   Keyfile string
+  MaxConns int
 }
 
 var ServerConf ServerConfig
@@ -30,5 +31,6 @@ var blob = []byte(
   "Workers": 10,
   "Heartbeat": 5,
   "Certfile": "",
-  "Keyfile": ""
+  "Keyfile": "",
+  "MaxConns": 1000
 }`)

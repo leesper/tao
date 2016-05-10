@@ -23,6 +23,7 @@ func main() {
   }
 
   tcpConn, err := net.DialTCP("tcp", nil, serverAddr)
+
   if err != nil {
     log.Fatalln(err)
   }

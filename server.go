@@ -104,15 +104,20 @@ func (server *TCPServer) Start(keepAlive bool) {
     if server.tlsMode {
       conn = tls.Server(conn, &config)  // wrap as a tls connection
     }
-    
+
     /* Create a TCP connection upon accepting a new client, assign an net id
     to it, then manage it in connections map, and start it */
     netid := server.netids.GetAndIncrement()
     tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
-    server.connections.Put(netid, tcpConn)
-    log.Printf("Accepting client %s, net id %d\n", tcpConn, netid)
-    tcpConn.Do()
+    if server.connections.Size() < ServerConf.MaxConns {
+      server.connections.Put(netid, tcpConn)
+      log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn, netid, server.connections.Size())
+      tcpConn.Do()
+    } else {
+      log.Printf("WARN, MAX CONNS %d, refuse\n", ServerConf.MaxConns)
+      tcpConn.Close()
+    }
   }
 }
 
