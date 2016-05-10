@@ -15,6 +15,7 @@ Features
 ### Chat Server Example
 
     package main
+
     import (
       "runtime"
       "log"
@@ -33,7 +34,7 @@ Features
 
     func NewChatServer(addr string) *ChatServer {
       return &ChatServer {
-        tao.NewTCPServer(addr, false),
+        tao.NewTCPServer(addr),
       }
     }
 
@@ -43,7 +44,8 @@ Features
       tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
       tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
-      chatServer := NewChatServer(fmt.Sprintf("%s:%d", tao.ServerConf.IP, tao.ServerConf.Port))
+      chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
+      defer chatServer.Close()
 
       chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
         log.Printf("On connect\n")
@@ -58,63 +60,9 @@ Features
         log.Printf("Closing chat client\n")
       })
 
-      chatServer.Start(true)
+      chatServer.Start(false)
     }
 
-### Chat Message Example
-
-    package chat
-    import (
-      "errors"
-      "github.com/leesper/tao"
-    )
-
-    var ErrorNilData error = errors.New("Nil data")
-
-    type ChatMessage struct {
-      Info string
-    }
-
-    func (cm ChatMessage) MarshalBinary() ([]byte, error) {
-      return []byte(cm.Info), nil
-    }
-
-    func (cm ChatMessage) MessageNumber() int32 {
-      return 1
-    }
-
-    func UnmarshalChatMessage(data []byte) (message tao.Message, err error) {
-      if data == nil {
-        return nil, ErrorNilData
-      }
-      info := string(data)
-      msg := ChatMessage{
-        Info: info,
-      }
-      return msg, nil
-    }
-
-    type ChatMessageHandler struct {
-      message tao.Message
-    }
-
-    func NewChatMessageHandler(msg tao.Message) tao.MessageHandler {
-      return ChatMessageHandler{
-        message: msg,
-      }
-    }
-
-    func (handler ChatMessageHandler) Process(client *tao.TCPConnection) bool {
-      if client.Owner != nil {
-        connections := client.Owner.GetAllConnections()
-        for v := range connections.IterValues() {
-          c := v.(*tao.TCPConnection)
-          c.Write(handler.message)
-        }
-        return true
-      }
-      return false
-    }
 
 
 ### TODO list:   
