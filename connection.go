@@ -377,6 +377,10 @@ func (client *TCPConnection)handleServerMode() {
 
     case timeout := <-client.timeOutChan:
       if timeout != nil {
+        extraData := timeout.ExtraData.(int64)
+        if extraData != client.netid {
+          log.Printf("[Warn] time out of %d running on client %d", extraData, client.netid)
+        }
         client.Owner.workerPool.Put(client.netid, func() {
           timeout.Callback(time.Now())
         })
@@ -404,8 +408,13 @@ func (client *TCPConnection)handleClientMode() {
       }
 
     case timeout := <-client.timing.TimeOutChan:
-      // put callback into workers
-      timeout.Callback(time.Now())
+      if timeout != nil {
+        extraData := timeout.ExtraData.(int64)
+        if extraData != client.netid {
+          log.Printf("[Warn] time out of %d running on client %d", extraData, client.netid)
+        }
+        timeout.Callback(time.Now())
+      }
     }
   }
 }
