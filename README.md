@@ -60,7 +60,18 @@ Features
         log.Printf("Closing chat client\n")
       })
 
-      chatServer.Start(false)
+      heartBeatDuration := 5 * time.Second
+      chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, cli *tao.TCPConnection) {
+        log.Printf("Checking client %d at %s", cli.NetId(), time.Now())
+        last := cli.HeartBeat
+        period := heartBeatDuration.Nanoseconds()
+        if last < now.UnixNano() - 2 * period {
+          log.Printf("Client %s netid %d timeout, close it\n", cli, cli.NetId())
+          cli.Close()
+        }
+      })
+
+      chatServer.Start()
     }
 
 

@@ -57,5 +57,6 @@ func main() {
       cli.Close()
     }
   })
+
   chatServer.Start()
 }
