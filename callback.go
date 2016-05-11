@@ -11,11 +11,11 @@ type onErrorFunc func()
 type workerFunc func()
 
 type OnTimeOut struct {
-  Callback func(time.Time)
+  Callback func(time.Time, *TCPConnection)
   ExtraData interface{}
 }
 
-func NewOnTimeOut(extra interface{}, cb func(time.Time)) *OnTimeOut {
+func NewOnTimeOut(extra interface{}, cb func(time.Time, *TCPConnection)) *OnTimeOut {
   return &OnTimeOut{
     Callback: cb,
     ExtraData: extra,

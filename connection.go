@@ -28,7 +28,7 @@ type TCPConnection struct {
   handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
   timeOutChan chan *OnTimeOut
-  heartBeat int64
+  HeartBeat int64
   pendingTimers []int64
   onConnect onConnectFunc
   onMessage onMessageFunc
@@ -36,12 +36,12 @@ type TCPConnection struct {
   onError onErrorFunc
 }
 
-func ClientTCPConnection(id int64, addr string, t *TimingWheel, keepAlive bool) *TCPConnection {
+func ClientTCPConnection(id int64, addr string, t *TimingWheel) *TCPConnection {
   c, err := net.Dial("tcp", addr)
   if err != nil {
     log.Fatalln(err)
   }
-  tcpConn := &TCPConnection {
+  return &TCPConnection {
     netid: id,
     conn: c,
     wg: &sync.WaitGroup{},
@@ -50,16 +50,12 @@ func ClientTCPConnection(id int64, addr string, t *TimingWheel, keepAlive bool) 
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
-    heartBeat: time.Now().UnixNano(),
+    HeartBeat: time.Now().UnixNano(),
     pendingTimers: []int64{},
   }
-  if keepAlive {
-    tcpConn.activateKeepAlive()
-  }
-  return tcpConn
 }
 
-func ServerTCPConnection(id int64, s *TCPServer, c net.Conn, keepAlive bool) *TCPConnection {
+func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
   tcpConn := &TCPConnection {
     netid: id,
     Owner: s,
@@ -70,43 +66,18 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn, keepAlive bool) *TC
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
-    heartBeat: time.Now().UnixNano(),
+    HeartBeat: time.Now().UnixNano(),
     pendingTimers: []int64{},
   }
   tcpConn.SetOnConnectCallback(s.onConnect)
   tcpConn.SetOnMessageCallback(s.onMessage)
   tcpConn.SetOnErrorCallback(s.onError)
   tcpConn.SetOnCloseCallback(s.onClose)
-
-  if keepAlive {
-    tcpConn.activateKeepAlive()
-  }
   return tcpConn
 }
 
-func (client *TCPConnection)activateKeepAlive() {
-  if client.isServerMode() { // server mode, check
-    MessageMap.Register(HeartBeatMessage{}.MessageNumber(), UnmarshalFunctionType(UnmarshalHeartBeatMessage))
-    HandlerMap.Register(HeartBeatMessage{}.MessageNumber(), NewHandlerFunctionType(NewHeartBeatMessageHandler))
-    timerId := client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
-      log.Printf("Checking client %d at %s", client.netid, time.Now())
-      last := client.heartBeat
-      period := HEART_BEAT_PERIOD.Nanoseconds()
-      if last < now.UnixNano() - 2 * period {
-        log.Printf("Client %s netid %d timeout, close it\n", client, client.netid)
-        client.Close()
-      }
-    })
-    client.pendingTimers = append(client.pendingTimers, timerId)
-  } else { // client mode, send
-    client.RunEvery(HEART_BEAT_PERIOD, func(now time.Time) {
-      msg := HeartBeatMessage {
-        Timestamp: now.UnixNano(),
-      }
-      log.Printf("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
-      client.Write(msg)
-    })
-  }
+func (client *TCPConnection)NetId() int64 {
+  return client.netid
 }
 
 func (client *TCPConnection)isServerMode() bool {
@@ -195,7 +166,7 @@ func (client *TCPConnection)Do() {
   client.startLoop(client.handleLoop)
 }
 
-func (client *TCPConnection)RunAt(t time.Time, cb func(t time.Time)) int64 {
+func (client *TCPConnection)RunAt(t time.Time, cb func(t time.Time, cli *TCPConnection)) int64 {
   timeout := NewOnTimeOut(client.netid, cb)
   var id int64
   if client.timing != nil {
@@ -204,7 +175,7 @@ func (client *TCPConnection)RunAt(t time.Time, cb func(t time.Time)) int64 {
   return id
 }
 
-func (client *TCPConnection)RunAfter(d time.Duration, cb func(t time.Time)) int64 {
+func (client *TCPConnection)RunAfter(d time.Duration, cb func(t time.Time, cli *TCPConnection)) int64 {
   delay := time.Now().Add(d)
   var id int64
   if client.timing != nil {
@@ -213,7 +184,7 @@ func (client *TCPConnection)RunAfter(d time.Duration, cb func(t time.Time)) int6
   return id
 }
 
-func (client *TCPConnection)RunEvery(i time.Duration, cb func(t time.Time)) int64 {
+func (client *TCPConnection)RunEvery(i time.Duration, cb func(t time.Time, cli *TCPConnection)) int64 {
   delay := time.Now().Add(i)
   timeout := NewOnTimeOut(client.netid, cb)
   var id int64
@@ -376,17 +347,20 @@ func (client *TCPConnection)handleServerMode() {
           handler.Process(client)
         })
         // update heart beat timestamp
-        client.heartBeat = time.Now().UnixNano()
+        client.HeartBeat = time.Now().UnixNano()
       }
 
     case timeout := <-client.timeOutChan:
       if timeout != nil {
         extraData := timeout.ExtraData.(int64)
+        log.Println("netid is ", extraData)
+        log.Println("client is", client)
+        log.Println(timeout.Callback)
         if extraData != client.netid {
           log.Printf("[Warn] time out of %d running on client %d", extraData, client.netid)
         }
         client.Owner.workerPool.Put(client.netid, func() {
-          timeout.Callback(time.Now())
+          timeout.Callback(time.Now(), client)
         })
       }
     }
@@ -407,7 +381,7 @@ func (client *TCPConnection)handleClientMode() {
     case handler := <-client.handlerRecvChan:
       if !isNil(handler) {
         // update heart beat timestamp
-        client.heartBeat = time.Now().UnixNano()
+        client.HeartBeat = time.Now().UnixNano()
         handler.Process(client)
       }
 
@@ -417,7 +391,7 @@ func (client *TCPConnection)handleClientMode() {
         if extraData != client.netid {
           log.Printf("[Warn] time out of %d running on client %d", extraData, client.netid)
         }
-        timeout.Callback(time.Now())
+        timeout.Callback(time.Now(), client)
       }
     }
   }

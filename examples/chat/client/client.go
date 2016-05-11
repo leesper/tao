@@ -5,6 +5,7 @@ import (
   "fmt"
   "bufio"
   "os"
+  "time"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
 )
@@ -16,7 +17,7 @@ func init() {
 func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
 
-  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18341", tao.NewTimingWheel(), true)
+  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18341", tao.NewTimingWheel())
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
@@ -35,6 +36,15 @@ func main() {
 
   tcpConnection.SetOnMessageCallback(func(msg tao.Message, client *tao.TCPConnection) {
     fmt.Print(msg.(chat.ChatMessage).Info)
+  })
+
+  heartBeatDuration := 5 * time.Second
+  tcpConnection.RunEvery(heartBeatDuration, func(now time.Time, cli *tao.TCPConnection) {
+    msg := tao.HeartBeatMessage {
+      Timestamp: now.UnixNano(),
+    }
+    log.Printf("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
+    cli.Write(msg)
   })
 
   tcpConnection.Do()

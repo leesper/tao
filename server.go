@@ -23,6 +23,8 @@ type TCPServer struct {
   onMessage onMessageFunc
   onClose onCloseFunc
   onError onErrorFunc
+  scheduleFunc func(time.Time, *TCPConnection)
+  scheduleDuration time.Duration
 }
 
 func NewTCPServer(addr string) *TCPServer {
@@ -89,6 +91,11 @@ func (server *TCPServer) SetOnCloseCallback(cb func(*TCPConnection)) {
   server.onClose = onCloseFunc(cb)
 }
 
+func (server *TCPServer) SetOnScheduleCallback(d time.Duration, cb func(time.Time, *TCPConnection)) {
+  server.scheduleDuration = d
+  server.scheduleFunc = cb
+}
+
 func (server *TCPServer) loadTLSConfig() tls.Config {
   var config tls.Config
   cert, err := tls.LoadX509KeyPair(server.certFile, server.keyFile)
@@ -102,7 +109,7 @@ func (server *TCPServer) loadTLSConfig() tls.Config {
   return config
 }
 
-func (server *TCPServer) Start(keepAlive bool) {
+func (server *TCPServer) Start() {
   listener, err := net.Listen("tcp", server.address)
   if err != nil {
     log.Fatalln(err)
@@ -126,12 +133,16 @@ func (server *TCPServer) Start(keepAlive bool) {
     /* Create a TCP connection upon accepting a new client, assign an net id
     to it, then manage it in connections map, and start it */
     netid := server.netids.GetAndIncrement()
-    tcpConn := ServerTCPConnection(netid, server, conn, keepAlive)
+    tcpConn := ServerTCPConnection(netid, server, conn)
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     if server.connections.Size() < MAX_CONNECTIONS {
+      if server.scheduleFunc != nil {
+        timerId := tcpConn.RunEvery(server.scheduleDuration, server.scheduleFunc)
+        tcpConn.pendingTimers = append(tcpConn.pendingTimers, timerId)
+      }
       server.connections.Put(netid, tcpConn)
-      log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn, netid, server.connections.Size())
       tcpConn.Do()
+      log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn, netid, server.connections.Size())
     } else {
       log.Printf("WARN, MAX CONNS %d, refuse\n", MAX_CONNECTIONS)
       tcpConn.Close()

@@ -4,6 +4,7 @@ import (
   "runtime"
   "log"
   "fmt"
+  "time"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
 )
@@ -25,6 +26,8 @@ func NewChatServer(addr string) *ChatServer {
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
 
+  tao.MessageMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(tao.UnmarshalHeartBeatMessage))
+  tao.HandlerMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(tao.NewHeartBeatMessageHandler))
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
   tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
@@ -44,5 +47,15 @@ func main() {
     log.Printf("Closing chat client\n")
   })
 
-  chatServer.Start(false)
+  heartBeatDuration := 5 * time.Second
+  chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, cli *tao.TCPConnection) {
+    log.Printf("Checking client %d at %s", cli.NetId(), time.Now())
+    last := cli.HeartBeat
+    period := heartBeatDuration.Nanoseconds()
+    if last < now.UnixNano() - 2 * period {
+      log.Printf("Client %s netid %d timeout, close it\n", cli, cli.NetId())
+      cli.Close()
+    }
+  })
+  chatServer.Start()
 }

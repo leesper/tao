@@ -47,7 +47,5 @@ func main() {
     log.Printf("Receving message\n")
   })
 
-
-  echoServer.Start(false)
-
+  echoServer.Start()
 }

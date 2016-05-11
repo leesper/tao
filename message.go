@@ -102,6 +102,6 @@ func NewHeartBeatMessageHandler(msg Message) MessageHandler {
 func (handler HeartBeatMessageHandler) Process(client *TCPConnection) bool {
   heartBeatMessage := handler.message.(HeartBeatMessage)
   log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
-  client.heartBeat = heartBeatMessage.Timestamp
+  client.HeartBeat = heartBeatMessage.Timestamp
   return true
 }
