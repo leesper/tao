@@ -12,9 +12,9 @@ Server max connections limit (default to 1000);
 3. 新API：NewTLSTCPServer() 创建传输层安全的TCP服务器；<br/>
 New API: NewTLSTCPServer() for creating TLS-supported TCP server;
 4. 新特性：SetOnScheduleCallback() 由框架使用者来定义计划任务（比如心跳）；<br/>
-New Feature: SetOnScheduleCallback() make scheduled task managed by framwork users;
+New Feature: SetOnScheduleCallback() make scheduled task managed by framwork users(such as heart beat);
 5. 新特性：支持默认的消息编解码器TypeLengthValueCodec，并允许框架使用者开发自定义编解码器； <br/>
-Support TypeLengthValueCodec by default, allow framework users develop  their own codecs;
+Support TypeLengthValueCodec by default, while allowing framework users develop  their own codecs;
 
 1.0 Announcing Tao 1.0 - Release Notes
 --------
