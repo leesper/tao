@@ -26,10 +26,21 @@ func NewChatServer(addr string) *ChatServer {
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
 
-  tao.MessageMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(tao.UnmarshalHeartBeatMessage))
-  tao.HandlerMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(tao.NewHeartBeatMessageHandler))
-  tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
-  tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
+  tao.MessageMap.Register(
+    tao.DefaultHeartBeatMessage{}.MessageNumber(),
+    tao.UnmarshalFunctionType(tao.UnmarshalDefaultHeartBeatMessage))
+
+  tao.HandlerMap.Register(
+    tao.DefaultHeartBeatMessage{}.MessageNumber(),
+    tao.NewHandlerFunctionType(tao.NewDefaultHeartBeatMessageHandler))
+
+  tao.MessageMap.Register(
+    chat.ChatMessage{}.MessageNumber(),
+    tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
+
+  tao.HandlerMap.Register(
+    chat.ChatMessage{}.MessageNumber(),
+    tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
   chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
   defer chatServer.Close()
@@ -48,7 +59,8 @@ func main() {
   })
 
   heartBeatDuration := 5 * time.Second
-  chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, cli *tao.TCPConnection) {
+  chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, data interface{}) {
+    cli := data.(*tao.TCPConnection)
     log.Printf("Checking client %d at %s", cli.NetId(), time.Now())
     last := cli.HeartBeat
     period := heartBeatDuration.Nanoseconds()

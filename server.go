@@ -23,7 +23,7 @@ type TCPServer struct {
   onMessage onMessageFunc
   onClose onCloseFunc
   onError onErrorFunc
-  scheduleFunc func(time.Time, *TCPConnection)
+  scheduleFunc func(time.Time, interface{})
   scheduleDuration time.Duration
 }
 
@@ -91,7 +91,7 @@ func (server *TCPServer) SetOnCloseCallback(cb func(*TCPConnection)) {
   server.onClose = onCloseFunc(cb)
 }
 
-func (server *TCPServer) SetOnScheduleCallback(d time.Duration, cb func(time.Time, *TCPConnection)) {
+func (server *TCPServer) SetOnScheduleCallback(d time.Duration, cb func(time.Time, interface{})) {
   server.scheduleDuration = d
   server.scheduleFunc = cb
 }

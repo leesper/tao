@@ -4,6 +4,7 @@ import (
   "bytes"
   "encoding"
   "log"
+  "io"
   "encoding/binary"
 )
 
@@ -36,12 +37,18 @@ var (
   MessageMap MessageMapType
   HandlerMap HandlerMapType
   buf *bytes.Buffer
+  messageCodec Codec
 )
 
 func init() {
   MessageMap = make(MessageMapType)
   HandlerMap = make(HandlerMapType)
   buf = new(bytes.Buffer)
+  messageCodec = TypeLengthValueCodec{}
+}
+
+func SetMessageCodec(codec Codec) {
+  messageCodec = codec
 }
 
 func (hm *HandlerMapType) Register(msgType int32, fn NewHandlerFunctionType) {
@@ -57,24 +64,24 @@ func (hm *HandlerMapType) get(msgType int32) NewHandlerFunctionType {
 
 /* Message number 0 is the preserved message
 for long-term connection keeping alive */
-type HeartBeatMessage struct {
+type DefaultHeartBeatMessage struct {
   Timestamp int64
 }
 
-func (hbm HeartBeatMessage) MarshalBinary() ([]byte, error) {
+func (dhbm DefaultHeartBeatMessage) MarshalBinary() ([]byte, error) {
   buf.Reset()
-  err := binary.Write(buf, binary.BigEndian, hbm.Timestamp)
+  err := binary.Write(buf, binary.BigEndian, dhbm.Timestamp)
   if err != nil {
     return nil, err
   }
   return buf.Bytes(), nil
 }
 
-func (hbm HeartBeatMessage) MessageNumber() int32 {
+func (dhbm DefaultHeartBeatMessage) MessageNumber() int32 {
   return 0
 }
 
-func UnmarshalHeartBeatMessage(data []byte) (message Message, err error) {
+func UnmarshalDefaultHeartBeatMessage(data []byte) (message Message, err error) {
   var timestamp int64
   if data == nil {
     return nil, ErrorNilData
@@ -84,24 +91,88 @@ func UnmarshalHeartBeatMessage(data []byte) (message Message, err error) {
   if err != nil {
     return nil, err
   }
-  return HeartBeatMessage{
+  return DefaultHeartBeatMessage{
     Timestamp: timestamp,
   }, nil
 }
 
-type HeartBeatMessageHandler struct {
+type DefaultHeartBeatMessageHandler struct {
   message Message
 }
 
-func NewHeartBeatMessageHandler(msg Message) MessageHandler {
-  return HeartBeatMessageHandler{
+func NewDefaultHeartBeatMessageHandler(msg Message) MessageHandler {
+  return DefaultHeartBeatMessageHandler{
     message: msg,
   }
 }
 
-func (handler HeartBeatMessageHandler) Process(client *TCPConnection) bool {
-  heartBeatMessage := handler.message.(HeartBeatMessage)
+func (handler DefaultHeartBeatMessageHandler) Process(client *TCPConnection) bool {
+  heartBeatMessage := handler.message.(DefaultHeartBeatMessage)
   log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.HeartBeat = heartBeatMessage.Timestamp
   return true
+}
+
+/* Application programmer can define a custom codec themselves */
+type Codec interface {
+  Decode(*TCPConnection) (Message, error)
+  Encode(Message) ([]byte, error)
+}
+
+// use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
+type TypeLengthValueCodec struct {}
+
+func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
+  typeBytes := make([]byte, NTYPE)
+  lengthBytes := make([]byte, NLEN)
+
+  _, err := io.ReadFull(c.RawConn(), typeBytes)
+  if err != nil {
+    return nil, err
+  }
+  typeBuf := bytes.NewReader(typeBytes)
+  var msgType int32
+  if err = binary.Read(typeBuf, binary.BigEndian, &msgType); err != nil {
+    return nil, err
+  }
+
+  _, err = io.ReadFull(c.RawConn(), lengthBytes)
+  if err != nil {
+    return nil, err
+  }
+  lengthBuf := bytes.NewReader(lengthBytes)
+  var msgLen uint32
+  if err = binary.Read(lengthBuf, binary.BigEndian, &msgLen); err != nil {
+    return nil, err
+  }
+  if msgLen > MAXLEN {
+    return nil, ErrorIllegalData
+  }
+
+  // read real application message
+  msgBytes := make([]byte, msgLen)
+  _, err = io.ReadFull(c.RawConn(), msgBytes)
+  if err != nil {
+    return nil, err
+  }
+
+  // deserialize message from bytes
+  unmarshaler := MessageMap.get(msgType)
+  if unmarshaler == nil {
+    return nil, ErrorUndefind
+  }
+  return unmarshaler(msgBytes)
+}
+
+func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
+  data, err := msg.MarshalBinary();
+  if err != nil {
+    return nil, err
+  }
+  buf := new(bytes.Buffer)
+  binary.Write(buf, binary.BigEndian, msg.MessageNumber())
+  binary.Write(buf, binary.BigEndian, int32(len(data)))
+  binary.Write(buf, binary.BigEndian, data)
+  packet := buf.Bytes()
+  return packet, nil
 }

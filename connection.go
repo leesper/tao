@@ -1,13 +1,10 @@
 package tao
 
 import (
-  "bytes"
   "log"
   "net"
-  "encoding/binary"
   "sync"
   "time"
-  "io"
 )
 
 const (
@@ -166,7 +163,7 @@ func (client *TCPConnection)Do() {
   client.startLoop(client.handleLoop)
 }
 
-func (client *TCPConnection)RunAt(t time.Time, cb func(t time.Time, cli *TCPConnection)) int64 {
+func (client *TCPConnection)RunAt(t time.Time, cb func(time.Time, interface{})) int64 {
   timeout := NewOnTimeOut(client.netid, cb)
   var id int64
   if client.timing != nil {
@@ -175,7 +172,7 @@ func (client *TCPConnection)RunAt(t time.Time, cb func(t time.Time, cli *TCPConn
   return id
 }
 
-func (client *TCPConnection)RunAfter(d time.Duration, cb func(t time.Time, cli *TCPConnection)) int64 {
+func (client *TCPConnection)RunAfter(d time.Duration, cb func(time.Time, interface{})) int64 {
   delay := time.Now().Add(d)
   var id int64
   if client.timing != nil {
@@ -184,7 +181,7 @@ func (client *TCPConnection)RunAfter(d time.Duration, cb func(t time.Time, cli *
   return id
 }
 
-func (client *TCPConnection)RunEvery(i time.Duration, cb func(t time.Time, cli *TCPConnection)) int64 {
+func (client *TCPConnection)RunEvery(i time.Duration, cb func(time.Time, interface{})) int64 {
   delay := time.Now().Add(i)
   timeout := NewOnTimeOut(client.netid, cb)
   var id int64
@@ -206,6 +203,10 @@ func (client *TCPConnection)startLoop(looper func()) {
   }()
 }
 
+func (client *TCPConnection) RawConn() net.Conn {
+  return client.conn
+}
+
 /* readLoop() blocking read from connection, deserialize bytes into message,
 then find corresponding handler, put it into channel */
 func (client *TCPConnection)readLoop() {
@@ -214,8 +215,6 @@ func (client *TCPConnection)readLoop() {
     client.Close()
   }()
 
-  typeBytes := make([]byte, NTYPE)
-  lengthBytes := make([]byte, NLEN)
   for {
     select {
     case <-client.closeConnChan:
@@ -224,60 +223,18 @@ func (client *TCPConnection)readLoop() {
     default:
     }
 
-    // use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
-    _, err := io.ReadFull(client.conn, typeBytes)
+    msg, err := messageCodec.Decode(client)
     if err != nil {
-      log.Printf("Error: failed to read message type - %s", err)
-      return
-    }
-    typeBuf := bytes.NewReader(typeBytes)
-    var msgType int32
-    if err := binary.Read(typeBuf, binary.BigEndian, &msgType); err != nil {
-      log.Fatalln(err)
+      log.Printf("Error decoding message - %s", err)
     }
 
-    _, err = io.ReadFull(client.conn, lengthBytes)
-    if err != nil {
-      log.Printf("Error: failed to read message length - %s", err)
-      return
-    }
-    lengthBuf := bytes.NewReader(lengthBytes)
-    var msgLen uint32
-    if err := binary.Read(lengthBuf, binary.BigEndian, &msgLen); err != nil {
-      log.Fatalln(err)
-    }
-    if msgLen > MAXLEN {
-      log.Printf("Error: more than 8M data: %d\n", msgLen)
-      return
-    }
-
-    // read real application message
-    msgBytes := make([]byte, msgLen)
-    _, err = io.ReadFull(client.conn, msgBytes)
-    if err != nil {
-      log.Printf("Error: failed to read message value - %s", err)
-      return
-    }
-
-    // deserialize message from bytes
-    unmarshaler := MessageMap.get(msgType)
-    if unmarshaler == nil {
-      log.Printf("Error: undefined message %d\n", msgType)
-      continue
-    }
-    var msg Message
-    if msg, err = unmarshaler(msgBytes); err != nil {
-      log.Printf("Error: unmarshal message %d - %s\n", msgType, err)
-      continue
-    }
-
-    handlerFactory := HandlerMap.get(msgType)
+    handlerFactory := HandlerMap.get(msg.MessageNumber())
     if handlerFactory == nil {
       if client.onMessage != nil {
-        log.Printf("Message %d call onMessage()\n", msgType)
+        log.Printf("Message %d call onMessage()\n", msg.MessageNumber())
         client.onMessage(msg, client)
       } else {
-        log.Printf("No handler or onMessage() found for message %d", msgType)
+        log.Printf("No handler or onMessage() found for message %d", msg.MessageNumber())
       }
       continue
     }
@@ -302,18 +259,14 @@ func (client *TCPConnection)writeLoop() {
       return
 
     case msg := <-client.messageSendChan:
-      data, err := msg.MarshalBinary();
+      packet, err := messageCodec.Encode(msg)
       if err != nil {
-        log.Printf("Error serializing data\n")
+        log.Printf("Error encoding message - %s\n", err)
         continue
       }
-      buf := new(bytes.Buffer)
-      binary.Write(buf, binary.BigEndian, msg.MessageNumber())
-      binary.Write(buf, binary.BigEndian, int32(len(data)))
-      binary.Write(buf, binary.BigEndian, data)
-      packet := buf.Bytes()
+
       if _, err = client.conn.Write(packet); err != nil {
-        log.Printf("Error writing data %s\n", err)
+        log.Printf("Error writing data - %s\n", err)
       }
     }
   }
@@ -353,9 +306,6 @@ func (client *TCPConnection)handleServerMode() {
     case timeout := <-client.timeOutChan:
       if timeout != nil {
         extraData := timeout.ExtraData.(int64)
-        log.Println("netid is ", extraData)
-        log.Println("client is", client)
-        log.Println(timeout.Callback)
         if extraData != client.netid {
           log.Printf("[Warn] time out of %d running on client %d", extraData, client.netid)
         }

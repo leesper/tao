@@ -11,6 +11,8 @@ var (
   ErrorWouldBlock error = errors.New("Would block")
   ErrorNotHashable error = errors.New("Not hashable")
   ErrorNilData error = errors.New("Nil data")
+  ErrorIllegalData error = errors.New("More than 8M data")
+  ErrorUndefind error = errors.New("Undefined message")
 )
 
 const (

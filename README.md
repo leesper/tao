@@ -3,7 +3,15 @@ Tao --- 轻量级TCP异步框架，Go语言实现
 
 ## Light-weight TCP Asynchronous gOlang framework
 
-V1.0 Release Notes
+1.1 Announcing Tao 1.1 - Release Notes
+--------
+1. 添加注释，提高代码可读性 Add comments, make it more readable;
+2. 服务器的最大并发连接数（默认1000） Server max connections limit (default to 1000);
+3. 新API：TCPServer：NewTLSTCPServer() 创建传输层安全的TCP服务器 New API: NewTLSTCPServer() for creating TLS-supported TCP server;
+4. 新特性：TCPServer：SetOnScheduleCallback() 由框架使用者来定义计划任务（比如心跳） Make scheduled task managed by framwork users;
+5. 新特性：支持默认的消息编解码器TypeLengthValueCodec，并允许框架使用者开发自定义编解码器 Support TypeLengthValueCodec by default, allow framework users develop  their own codecs;
+
+1.0 Announcing Tao 1.0 - Release Notes
 --------
 1. 完全异步的读，写以及消息处理 Completely asynchronous reading, writing and message handling;
 2. 工作者协程池 Worker go-routine pool;
@@ -41,8 +49,21 @@ V1.0 Release Notes
     func main() {
       runtime.GOMAXPROCS(runtime.NumCPU())
 
-      tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
-      tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
+      tao.MessageMap.Register(
+        tao.DefaultHeartBeatMessage{}.MessageNumber(),
+        tao.UnmarshalFunctionType(tao.UnmarshalDefaultHeartBeatMessage))
+
+      tao.HandlerMap.Register(
+        tao.DefaultHeartBeatMessage{}.MessageNumber(),
+        tao.NewHandlerFunctionType(tao.NewDefaultHeartBeatMessageHandler))
+
+      tao.MessageMap.Register(
+        chat.ChatMessage{}.MessageNumber(),
+        tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
+
+      tao.HandlerMap.Register(
+        chat.ChatMessage{}.MessageNumber(),
+        tao.NewHandlerFunctionType(chat.NewChatMessageHandler))
 
       chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
       defer chatServer.Close()
