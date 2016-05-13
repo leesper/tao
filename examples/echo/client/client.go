@@ -12,7 +12,7 @@ func init() {
 }
 
 func main() {
-  tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), tao.UnmarshalFunctionType(echo.UnmarshalEchoMessage))
+  tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.UnmarshalEchoMessage)
 
   tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18342", tao.NewTimingWheel())
 
