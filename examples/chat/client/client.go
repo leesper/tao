@@ -15,9 +15,9 @@ func init() {
 }
 
 func main() {
-  tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), tao.UnmarshalFunctionType(chat.UnmarshalChatMessage))
+  tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.UnmarshalChatMessage)
 
-  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18341", tao.NewTimingWheel())
+  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18341", tao.NewTimingWheel(), false)
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client *tao.TCPConnection) bool {

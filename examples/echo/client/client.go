@@ -14,7 +14,7 @@ func init() {
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.UnmarshalEchoMessage)
 
-  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18342", tao.NewTimingWheel())
+  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18342", tao.NewTimingWheel(), false)
 
   tcpConnection.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
     log.Printf("On connect\n")

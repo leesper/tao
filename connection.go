@@ -17,6 +17,7 @@ type TCPConnection struct {
   netid int64
   Owner *TCPServer
   conn net.Conn
+  address string
   name string
   closeOnce sync.Once
   wg *sync.WaitGroup
@@ -27,13 +28,14 @@ type TCPConnection struct {
   timeOutChan chan *OnTimeOut
   HeartBeat int64
   pendingTimers []int64
+  reconnect bool
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
   onError onErrorFunc
 }
 
-func ClientTCPConnection(id int64, addr string, t *TimingWheel) *TCPConnection {
+func ClientTCPConnection(id int64, addr string, t *TimingWheel, reconn bool) *TCPConnection {
   c, err := net.Dial("tcp", addr)
   if err != nil {
     log.Fatalln(err)
@@ -41,6 +43,7 @@ func ClientTCPConnection(id int64, addr string, t *TimingWheel) *TCPConnection {
   return &TCPConnection {
     netid: id,
     conn: c,
+    address: addr,
     wg: &sync.WaitGroup{},
     timing: t,
     messageSendChan: make(chan Message, 1024),
@@ -49,6 +52,7 @@ func ClientTCPConnection(id int64, addr string, t *TimingWheel) *TCPConnection {
     timeOutChan: make(chan *OnTimeOut),
     HeartBeat: time.Now().UnixNano(),
     pendingTimers: []int64{},
+    reconnect: reconn,
   }
 }
 
@@ -65,6 +69,7 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
     timeOutChan: make(chan *OnTimeOut),
     HeartBeat: time.Now().UnixNano(),
     pendingTimers: []int64{},
+    reconnect: false,
   }
   tcpConn.SetOnConnectCallback(s.onConnect)
   tcpConn.SetOnMessageCallback(s.onMessage)
@@ -75,6 +80,14 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
 
 func (client *TCPConnection)NetId() int64 {
   return client.netid
+}
+
+func (client *TCPConnection)Reconnect() error {
+  var err error
+  if !client.isServerMode() {  // only client mode can do reconnection
+    client.conn, err = net.Dial("tcp", client.address)
+  }
+  return err
 }
 
 func (client *TCPConnection)isServerMode() bool {
@@ -128,11 +141,15 @@ func (client *TCPConnection)Close() {
     close(client.handlerRecvChan)
     close(client.timeOutChan)
     client.conn.Close()
+
     if (client.onClose != nil) {
       client.onClose(client)
     }
+
     if client.isServerMode() {
       client.Owner.connections.Remove(client.netid)
+    } else if client.reconnect {
+      client.Reconnect()
     }
 
     for _, id := range client.pendingTimers {
