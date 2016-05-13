@@ -67,7 +67,9 @@ func (server *TCPServer) timeOutLoop() {
       netid := timeout.ExtraData.(int64)
       if conn, ok := server.connections.Get(netid); ok {
         tcpConn := conn.(*TCPConnection)
-        tcpConn.timeOutChan<- timeout
+        if !tcpConn.closed.Get() {
+          tcpConn.timeOutChan<- timeout
+        }
       } else {
         log.Printf("Invalid client %d\n", netid)
       }
@@ -137,8 +139,7 @@ func (server *TCPServer) Start() {
     tcpConn.SetName(tcpConn.RemoteAddr().String())
     if server.connections.Size() < MAX_CONNECTIONS {
       if server.scheduleFunc != nil {
-        timerId := tcpConn.RunEvery(server.scheduleDuration, server.scheduleFunc)
-        tcpConn.pendingTimers = append(tcpConn.pendingTimers, timerId)
+        tcpConn.RunEvery(server.scheduleDuration, server.scheduleFunc)
       }
       server.connections.Put(netid, tcpConn)
       tcpConn.Do()

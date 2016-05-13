@@ -29,6 +29,7 @@ type TCPConnection struct {
   HeartBeat int64
   pendingTimers []int64
   reconnect bool
+  closed *AtomicBoolean
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
@@ -53,6 +54,7 @@ func ClientTCPConnection(id int64, addr string, t *TimingWheel, reconn bool) *TC
     HeartBeat: time.Now().UnixNano(),
     pendingTimers: []int64{},
     reconnect: reconn,
+    closed: NewAtomicBoolean(false),
   }
 }
 
@@ -70,6 +72,7 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
     HeartBeat: time.Now().UnixNano(),
     pendingTimers: []int64{},
     reconnect: false,
+    closed: NewAtomicBoolean(false),
   }
   tcpConn.SetOnConnectCallback(s.onConnect)
   tcpConn.SetOnMessageCallback(s.onMessage)
@@ -82,12 +85,13 @@ func (client *TCPConnection)NetId() int64 {
   return client.netid
 }
 
-func (client *TCPConnection)Reconnect() error {
-  var err error
-  if !client.isServerMode() {  // only client mode can do reconnection
-    client.conn, err = net.Dial("tcp", client.address)
-  }
-  return err
+func (client *TCPConnection)Reconnect() {
+  netid := client.netid
+  address := client.address
+  timing := client.timing
+  reconnect := client.reconnect
+  client = ClientTCPConnection(netid, address, timing, reconnect)
+  client.Do()
 }
 
 func (client *TCPConnection)isServerMode() bool {
@@ -136,24 +140,25 @@ func (client *TCPConnection)String() string {
 
 func (client *TCPConnection)Close() {
   client.closeOnce.Do(func() {
-    close(client.closeConnChan)
-    close(client.messageSendChan)
-    close(client.handlerRecvChan)
-    close(client.timeOutChan)
-    client.conn.Close()
+    if client.closed.CompareAndSet(false, true) {
+      close(client.closeConnChan)
+      close(client.messageSendChan)
+      close(client.handlerRecvChan)
+      close(client.timeOutChan)
+      client.conn.Close()
 
-    if (client.onClose != nil) {
-      client.onClose(client)
-    }
+      if (client.onClose != nil) {
+        client.onClose(client)
+      }
 
-    if client.isServerMode() {
-      client.Owner.connections.Remove(client.netid)
-    } else if client.reconnect {
-      client.Reconnect()
-    }
-
-    for _, id := range client.pendingTimers {
-      client.CancelTimer(id)
+      if client.isServerMode() {
+        client.Owner.connections.Remove(client.netid)
+        for _, id := range client.pendingTimers {
+          client.CancelTimer(id)
+        }
+      } else {
+        client.Reconnect()
+      }
     }
   })
 }
@@ -182,16 +187,20 @@ func (client *TCPConnection)Do() {
 
 func (client *TCPConnection)RunAt(t time.Time, cb func(time.Time, interface{})) int64 {
   timeout := NewOnTimeOut(client.netid, cb)
-  var id int64
+  var id int64 = -1
   if client.timing != nil {
     id = client.timing.AddTimer(t, 0, timeout)
+    if id >= 0 {
+      client.pendingTimers = append(client.pendingTimers, id)
+      log.Println("Pending timers ", client.pendingTimers)
+    }
   }
   return id
 }
 
 func (client *TCPConnection)RunAfter(d time.Duration, cb func(time.Time, interface{})) int64 {
   delay := time.Now().Add(d)
-  var id int64
+  var id int64 = -1
   if client.timing != nil {
     id = client.RunAt(delay, cb)
   }
@@ -201,9 +210,12 @@ func (client *TCPConnection)RunAfter(d time.Duration, cb func(time.Time, interfa
 func (client *TCPConnection)RunEvery(i time.Duration, cb func(time.Time, interface{})) int64 {
   delay := time.Now().Add(i)
   timeout := NewOnTimeOut(client.netid, cb)
-  var id int64
+  var id int64 = -1
   if client.timing != nil {
     id = client.timing.AddTimer(delay, i, timeout)
+    if id >= 0 {
+      client.pendingTimers = append(client.pendingTimers, id)
+    }
   }
   return id
 }
@@ -241,8 +253,12 @@ func (client *TCPConnection)readLoop() {
     }
 
     msg, err := messageCodec.Decode(client)
+    // if err == ErrorUndefind {
+    //   continue
+    // }
     if err != nil {
       log.Printf("Error decoding message - %s", err)
+      return
     }
 
     handlerFactory := HandlerMap.get(msg.MessageNumber())

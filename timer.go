@@ -131,6 +131,9 @@ func (tw *TimingWheel) getExpired() []*timerType {
       heap.Push(&tw.timers, timer)
       break
     }
+    if delta <= -1.0 {
+      log.Println("DELTA ", delta)
+    }
   }
   return expired
 }
