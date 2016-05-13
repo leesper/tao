@@ -253,14 +253,18 @@ func (client *TCPConnection)readLoop() {
     }
 
     msg, err := messageCodec.Decode(client)
-    // if err == ErrorUndefind {
-    //   continue
-    // }
     if err != nil {
       log.Printf("Error decoding message - %s", err)
+      if err == ErrorUndefind {
+        // update heart beat timestamp
+        client.HeartBeat = time.Now().UnixNano()
+        continue
+      }
       return
     }
 
+    // update heart beat timestamp
+    client.HeartBeat = time.Now().UnixNano()
     handlerFactory := HandlerMap.get(msg.MessageNumber())
     if handlerFactory == nil {
       if client.onMessage != nil {
@@ -332,8 +336,6 @@ func (client *TCPConnection)handleServerMode() {
         client.Owner.workerPool.Put(client.netid, func() {
           handler.Process(client)
         })
-        // update heart beat timestamp
-        client.HeartBeat = time.Now().UnixNano()
       }
 
     case timeout := <-client.timeOutChan:
@@ -363,8 +365,6 @@ func (client *TCPConnection)handleClientMode() {
 
     case handler := <-client.handlerRecvChan:
       if !isNil(handler) {
-        // update heart beat timestamp
-        client.HeartBeat = time.Now().UnixNano()
         handler.Process(client)
       }
 
