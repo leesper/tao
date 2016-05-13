@@ -8,29 +8,11 @@ import (
   "encoding/binary"
 )
 
-type Message interface {
-  MessageNumber() int32
-  encoding.BinaryMarshaler
-}
-
-type MessageHandler interface {
-  Process(client *TCPConnection) bool
-}
-
-type NewHandlerFunctionType func(m Message) MessageHandler
-type UnmarshalFunctionType func(data []byte) (message Message, err error)
-type MessageMapType map[int32]UnmarshalFunctionType
-type HandlerMapType map[int32]NewHandlerFunctionType
-
-func (mm *MessageMapType) Register(msgType int32, unmarshaler UnmarshalFunctionType) {
-  (*mm)[msgType] = unmarshaler
-}
-
-func (mm *MessageMapType) get(msgType int32) UnmarshalFunctionType {
-  if unmarshaler, ok := (*mm)[msgType]; ok {
-    return unmarshaler
-  }
-  return nil
+func init() {
+  MessageMap = make(MessageMapType)
+  HandlerMap = make(HandlerMapType)
+  buf = new(bytes.Buffer)
+  messageCodec = TypeLengthValueCodec{}
 }
 
 var (
@@ -40,19 +22,35 @@ var (
   messageCodec Codec
 )
 
-func init() {
-  MessageMap = make(MessageMapType)
-  HandlerMap = make(HandlerMapType)
-  buf = new(bytes.Buffer)
-  messageCodec = TypeLengthValueCodec{}
+type NewHandlerFunctionType func(Message) MessageHandler
+type UnmarshalFunctionType func([]byte) (Message, error)
+
+type Message interface {
+  MessageNumber() int32
+  encoding.BinaryMarshaler
 }
 
-func SetMessageCodec(codec Codec) {
-  messageCodec = codec
+type MessageHandler interface {
+  Process(client *TCPConnection) bool
 }
 
-func (hm *HandlerMapType) Register(msgType int32, fn NewHandlerFunctionType) {
-  (*hm)[msgType] = fn
+type MessageMapType map[int32]UnmarshalFunctionType
+
+func (mm *MessageMapType) Register(msgType int32, unmarshaler func([]byte) (Message, error)) {
+  (*mm)[msgType] = UnmarshalFunctionType(unmarshaler)
+}
+
+func (mm *MessageMapType) get(msgType int32) UnmarshalFunctionType {
+  if unmarshaler, ok := (*mm)[msgType]; ok {
+    return unmarshaler
+  }
+  return nil
+}
+
+type HandlerMapType map[int32]NewHandlerFunctionType
+
+func (hm *HandlerMapType) Register(msgType int32, factory func(Message) MessageHandler) {
+  (*hm)[msgType] = NewHandlerFunctionType(factory)
 }
 
 func (hm *HandlerMapType) get(msgType int32) NewHandlerFunctionType {
@@ -111,6 +109,10 @@ func (handler DefaultHeartBeatMessageHandler) Process(client *TCPConnection) boo
   log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.HeartBeat = heartBeatMessage.Timestamp
   return true
+}
+
+func SetMessageCodec(codec Codec) {
+  messageCodec = codec
 }
 
 /* Application programmer can define a custom codec themselves */

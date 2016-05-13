@@ -24,8 +24,8 @@ func NewEchoServer(addr string) *EchoServer {
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
 
-  tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), tao.UnmarshalFunctionType(echo.UnmarshalEchoMessage))
-  tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), tao.NewHandlerFunctionType(echo.NewEchoMessageHandler))
+  tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.UnmarshalEchoMessage)
+  tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), echo.NewEchoMessageHandler)
 
   echoServer := NewEchoServer(":18342")
   defer echoServer.Close()

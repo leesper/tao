@@ -29,7 +29,7 @@ func main() {
     log.Printf("On close\n")
   })
 
-  tcpConnection.SetOnMessageCallback(func(msg tao.Message, client *tao.TCPConnection) {
+  tcpConnection.SetOnMessageCallback(func(msg tao.Message, c *tao.TCPConnection) {
     echoMessage := msg.(echo.EchoMessage)
     log.Printf("%s\n", echoMessage.Message)
   })
@@ -38,7 +38,8 @@ func main() {
     Message: "hello, world",
   }
 
-  tcpConnection.RunAt(time.Now().Add(time.Second * 2), func(now time.Time, cli *tao.TCPConnection) {
+  tcpConnection.RunAt(time.Now().Add(time.Second * 2), func(now time.Time, data interface{}) {
+    cli := data.(*tao.TCPConnection)
     log.Println("Closing after 2 seconds")
     cli.Close()
   })
