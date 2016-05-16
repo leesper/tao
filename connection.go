@@ -30,6 +30,7 @@ type TCPConnection struct {
   pendingTimers []int64
   reconnect bool
   closed *AtomicBoolean
+  messageCodec Codec
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
@@ -55,6 +56,7 @@ func ClientTCPConnection(id int64, addr string, t *TimingWheel, reconn bool) *TC
     pendingTimers: []int64{},
     reconnect: reconn,
     closed: NewAtomicBoolean(false),
+    messageCodec: TypeLengthValueCodec{},
   }
 }
 
@@ -73,6 +75,7 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
     pendingTimers: []int64{},
     reconnect: false,
     closed: NewAtomicBoolean(false),
+    messageCodec: TypeLengthValueCodec{},
   }
   tcpConn.SetOnConnectCallback(s.onConnect)
   tcpConn.SetOnMessageCallback(s.onMessage)
@@ -92,6 +95,10 @@ func (client *TCPConnection)Reconnect() {
   reconnect := client.reconnect
   client = ClientTCPConnection(netid, address, timing, reconnect)
   client.Do()
+}
+
+func (client *TCPConnection)SetCodec(cdc Codec) {
+  client.messageCodec = cdc
 }
 
 func (client *TCPConnection)isServerMode() bool {
@@ -164,21 +171,7 @@ func (client *TCPConnection)Close() {
 }
 
 func (client *TCPConnection)Write(msg Message) error {
-  packet, err := messageCodec.Encode(msg)
-  if err != nil {
-    return err
-  }
-
-  select {
-  case client.messageSendChan<- packet:
-    return nil
-  default:
-    return ErrorWouldBlock
-  }
-}
-
-func (client *TCPConnection)EncodeAndWrite(msg Message, cdc Codec) error {
-  packet, err := cdc.Encode(msg)
+  packet, err := client.messageCodec.Encode(msg)
   if err != nil {
     return err
   }
@@ -271,7 +264,7 @@ func (client *TCPConnection)readLoop() {
     default:
     }
 
-    msg, err := messageCodec.Decode(client)
+    msg, err := client.messageCodec.Decode(client)
     if err != nil {
       log.Printf("Error decoding message - %s", err)
       if err == ErrorUndefind {

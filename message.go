@@ -11,14 +11,12 @@ func init() {
   MessageMap = make(MessageMapType)
   HandlerMap = make(HandlerMapType)
   buf = new(bytes.Buffer)
-  messageCodec = TypeLengthValueCodec{}
 }
 
 var (
   MessageMap MessageMapType
   HandlerMap HandlerMapType
   buf *bytes.Buffer
-  messageCodec Codec
 )
 
 type NewHandlerFunctionType func(Message) MessageHandler
@@ -108,10 +106,6 @@ func (handler DefaultHeartBeatMessageHandler) Process(client *TCPConnection) boo
   log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.HeartBeat = heartBeatMessage.Timestamp
   return true
-}
-
-func SetMessageCodec(codec Codec) {
-  messageCodec = codec
 }
 
 /* Application programmer can define a custom codec themselves */
