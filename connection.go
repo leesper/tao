@@ -22,7 +22,7 @@ type TCPConnection struct {
   closeOnce sync.Once
   wg *sync.WaitGroup
   timing *TimingWheel
-  messageSendChan chan Message
+  messageSendChan chan []byte
   handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
   timeOutChan chan *OnTimeOut
@@ -47,7 +47,7 @@ func ClientTCPConnection(id int64, addr string, t *TimingWheel, reconn bool) *TC
     address: addr,
     wg: &sync.WaitGroup{},
     timing: t,
-    messageSendChan: make(chan Message, 1024),
+    messageSendChan: make(chan []byte, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
@@ -65,7 +65,7 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
     conn: c,
     wg: &sync.WaitGroup{},
     timing: s.timing,
-    messageSendChan: make(chan Message, 1024),
+    messageSendChan: make(chan []byte, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
@@ -163,9 +163,28 @@ func (client *TCPConnection)Close() {
   })
 }
 
-func (client *TCPConnection)Write(msg Message) (err error) {
+func (client *TCPConnection)Write(msg Message) error {
+  packet, err := messageCodec.Encode(msg)
+  if err != nil {
+    return err
+  }
+
   select {
-  case client.messageSendChan<- msg:
+  case client.messageSendChan<- packet:
+    return nil
+  default:
+    return ErrorWouldBlock
+  }
+}
+
+func (client *TCPConnection)EncodeAndWrite(msg Message, cdc Codec) error {
+  packet, err := cdc.Encode(msg)
+  if err != nil {
+    return err
+  }
+
+  select {
+  case client.messageSendChan<- packet:
     return nil
   default:
     return ErrorWouldBlock
@@ -295,14 +314,8 @@ func (client *TCPConnection)writeLoop() {
     case <-client.closeConnChan:
       return
 
-    case msg := <-client.messageSendChan:
-      packet, err := messageCodec.Encode(msg)
-      if err != nil {
-        log.Printf("Error encoding message - %s\n", err)
-        continue
-      }
-
-      if _, err = client.conn.Write(packet); err != nil {
+    case packet := <-client.messageSendChan:
+      if _, err := client.conn.Write(packet); err != nil {
         log.Printf("Error writing data - %s\n", err)
       }
     }
