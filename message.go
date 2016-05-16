@@ -2,7 +2,6 @@ package tao
 
 import (
   "bytes"
-  "encoding"
   "log"
   "io"
   "encoding/binary"
@@ -27,7 +26,7 @@ type UnmarshalFunctionType func([]byte) (Message, error)
 
 type Message interface {
   MessageNumber() int32
-  encoding.BinaryMarshaler
+  Serialize() ([]byte, error)
 }
 
 type MessageHandler interface {
@@ -66,7 +65,7 @@ type DefaultHeartBeatMessage struct {
   Timestamp int64
 }
 
-func (dhbm DefaultHeartBeatMessage) MarshalBinary() ([]byte, error) {
+func (dhbm DefaultHeartBeatMessage) Serialize() ([]byte, error) {
   buf.Reset()
   err := binary.Write(buf, binary.BigEndian, dhbm.Timestamp)
   if err != nil {
@@ -79,7 +78,7 @@ func (dhbm DefaultHeartBeatMessage) MessageNumber() int32 {
   return 0
 }
 
-func UnmarshalDefaultHeartBeatMessage(data []byte) (message Message, err error) {
+func DeserializeDefaultHeartBeatMessage(data []byte) (message Message, err error) {
   var timestamp int64
   if data == nil {
     return nil, ErrorNilData
@@ -167,7 +166,7 @@ func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
 }
 
 func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
-  data, err := msg.MarshalBinary();
+  data, err := msg.Serialize();
   if err != nil {
     return nil, err
   }

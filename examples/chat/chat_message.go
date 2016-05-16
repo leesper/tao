@@ -11,15 +11,15 @@ type ChatMessage struct {
   Info string
 }
 
-func (cm ChatMessage) MarshalBinary() ([]byte, error) {
-  return []byte(cm.Info), nil
-}
-
 func (cm ChatMessage) MessageNumber() int32 {
   return 1
 }
 
-func UnmarshalChatMessage(data []byte) (message tao.Message, err error) {
+func (cm ChatMessage) Serialize() ([]byte, error) {
+  return []byte(cm.Info), nil
+}
+
+func DeserializeChatMessage(data []byte) (message tao.Message, err error) {
   if data == nil {
     return nil, ErrorNilData
   }

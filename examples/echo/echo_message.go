@@ -9,7 +9,7 @@ type EchoMessage struct {
   Message string
 }
 
-func (em EchoMessage) MarshalBinary() ([]byte, error) {
+func (em EchoMessage) Serialize() ([]byte, error) {
   return []byte(em.Message), nil
 }
 
@@ -17,7 +17,7 @@ func (em EchoMessage) MessageNumber() int32 {
   return 1
 }
 
-func UnmarshalEchoMessage(data []byte) (message tao.Message, err error) {
+func DeserializeEchoMessage(data []byte) (message tao.Message, err error) {
   if data == nil {
     return nil, tao.ErrorNilData
   }
