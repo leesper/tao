@@ -37,7 +37,7 @@ func (mm *MessageMapType) Register(msgType int32, unmarshaler func([]byte) (Mess
   (*mm)[msgType] = UnmarshalFunctionType(unmarshaler)
 }
 
-func (mm *MessageMapType) get(msgType int32) UnmarshalFunctionType {
+func (mm *MessageMapType) Get(msgType int32) UnmarshalFunctionType {
   if unmarshaler, ok := (*mm)[msgType]; ok {
     return unmarshaler
   }
@@ -152,7 +152,7 @@ func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
   }
 
   // deserialize message from bytes
-  unmarshaler := MessageMap.get(msgType)
+  unmarshaler := MessageMap.Get(msgType)
   if unmarshaler == nil {
     return nil, ErrorUndefined
   }
