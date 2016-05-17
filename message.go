@@ -154,7 +154,7 @@ func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
   // deserialize message from bytes
   unmarshaler := MessageMap.get(msgType)
   if unmarshaler == nil {
-    return nil, ErrorUndefind
+    return nil, ErrorUndefined
   }
   return unmarshaler(msgBytes)
 }

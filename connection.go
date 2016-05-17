@@ -267,7 +267,7 @@ func (client *TCPConnection)readLoop() {
     msg, err := client.messageCodec.Decode(client)
     if err != nil {
       log.Printf("Error decoding message - %s", err)
-      if err == ErrorUndefind {
+      if err == ErrorUndefined {
         // update heart beat timestamp
         client.HeartBeat = time.Now().UnixNano()
         continue
