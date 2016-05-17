@@ -160,7 +160,7 @@ func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
 }
 
 func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
-  data, err := msg.Serialize();
+  data, err := msg.Serialize()
   if err != nil {
     return nil, err
   }
