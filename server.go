@@ -57,6 +57,10 @@ func NewTLSTCPServer(addr, cert, key string) *TCPServer {
   return server
 }
 
+func (server *TCPServer) GetWorkPool() *WorkerPool {
+  return server.workerPool
+}
+
 /* Retrieve the extra data(i.e. net id), and then redispatch
 timeout callbacks to corresponding client connection, this
 prevents one client from running callbacks of other clients */
