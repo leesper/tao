@@ -145,6 +145,10 @@ func (client *TCPConnection)String() string {
   return client.name
 }
 
+func (client *TCPConnection)IsClosed() bool {
+  return client.closed.Get()
+}
+
 func (client *TCPConnection)Close() {
   client.closeOnce.Do(func() {
     if client.closed.CompareAndSet(false, true) {
