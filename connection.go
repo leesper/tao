@@ -277,7 +277,7 @@ func (client *TCPConnection)readLoop() {
 
     // update heart beat timestamp
     client.HeartBeat = time.Now().UnixNano()
-    handlerFactory := HandlerMap.get(msg.MessageNumber())
+    handlerFactory := HandlerMap.Get(msg.MessageNumber())
     if handlerFactory == nil {
       if client.onMessage != nil {
         log.Printf("Message %d call onMessage()\n", msg.MessageNumber())
@@ -289,7 +289,7 @@ func (client *TCPConnection)readLoop() {
     }
 
     // send handler to handleLoop
-    handler := handlerFactory(msg)
+    handler := handlerFactory(client.NetId(), msg)
     client.handlerRecvChan<- handler
   }
 }

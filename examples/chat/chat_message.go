@@ -31,11 +31,13 @@ func DeserializeChatMessage(data []byte) (message tao.Message, err error) {
 }
 
 type ChatMessageHandler struct {
+  netid int64
   message tao.Message
 }
 
-func NewChatMessageHandler(msg tao.Message) tao.MessageHandler {
+func NewChatMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
   return ChatMessageHandler{
+    netid: net, 
     message: msg,
   }
 }

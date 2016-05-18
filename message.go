@@ -19,7 +19,7 @@ var (
   buf *bytes.Buffer
 )
 
-type NewHandlerFunctionType func(Message) MessageHandler
+type NewHandlerFunctionType func(int64, Message) MessageHandler
 type UnmarshalFunctionType func([]byte) (Message, error)
 
 type Message interface {
@@ -46,11 +46,11 @@ func (mm *MessageMapType) Get(msgType int32) UnmarshalFunctionType {
 
 type HandlerMapType map[int32]NewHandlerFunctionType
 
-func (hm *HandlerMapType) Register(msgType int32, factory func(Message) MessageHandler) {
+func (hm *HandlerMapType) Register(msgType int32, factory func(int64, Message) MessageHandler) {
   (*hm)[msgType] = NewHandlerFunctionType(factory)
 }
 
-func (hm *HandlerMapType) get(msgType int32) NewHandlerFunctionType {
+func (hm *HandlerMapType) Get(msgType int32) NewHandlerFunctionType {
   if fn, ok := (*hm)[msgType]; ok {
     return fn
   }
@@ -92,11 +92,13 @@ func DeserializeDefaultHeartBeatMessage(data []byte) (message Message, err error
 }
 
 type DefaultHeartBeatMessageHandler struct {
+  netid int64
   message Message
 }
 
-func NewDefaultHeartBeatMessageHandler(msg Message) MessageHandler {
+func NewDefaultHeartBeatMessageHandler(net int64, msg Message) MessageHandler {
   return DefaultHeartBeatMessageHandler{
+    netid: net,
     message: msg,
   }
 }

@@ -29,11 +29,13 @@ func DeserializeEchoMessage(data []byte) (message tao.Message, err error) {
 }
 
 type EchoMessageHandler struct {
+  netid int64
   message tao.Message
 }
 
-func NewEchoMessageHandler(msg tao.Message) tao.MessageHandler {
+func NewEchoMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
   return EchoMessageHandler{
+    netid: net,
     message: msg,
   }
 }
