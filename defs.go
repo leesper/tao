@@ -13,6 +13,7 @@ var (
   ErrorNilData error = errors.New("Nil data")
   ErrorIllegalData error = errors.New("More than 8M data")
   ErrorUndefined error = errors.New("Undefined message")
+  ErrorNotImplemented error = errors.New("Not implemented")
 )
 
 const (

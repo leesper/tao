@@ -31,6 +31,7 @@ type TCPConnection struct {
   reconnect bool
   closed *AtomicBoolean
   messageCodec Codec
+  extraData interface{}
   onConnect onConnectFunc
   onMessage onMessageFunc
   onClose onCloseFunc
@@ -82,6 +83,14 @@ func ServerTCPConnection(id int64, s *TCPServer, c net.Conn) *TCPConnection {
   tcpConn.SetOnErrorCallback(s.onError)
   tcpConn.SetOnCloseCallback(s.onClose)
   return tcpConn
+}
+
+func (client *TCPConnection)SetExtraData(data interface{}) {
+  client.extraData = data
+}
+
+func (client *TCPConnection)GetExtraData() interface{} {
+  return client.extraData
 }
 
 func (client *TCPConnection)NetId() int64 {
