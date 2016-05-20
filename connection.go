@@ -165,6 +165,7 @@ func (client *TCPConnection)Close() {
       close(client.messageSendChan)
       close(client.handlerRecvChan)
       close(client.timeOutChan)
+      client.wg.Wait()
       client.conn.Close()
 
       if (client.onClose != nil) {
@@ -312,6 +313,13 @@ then blocking write into connection */
 func (client *TCPConnection)writeLoop() {
   defer func() {
     recover()
+    for packet := range client.messageSendChan {
+      if packet != nil {
+        if _, err := client.conn.Write(packet); err != nil {
+          log.Printf("Error writing data - %s\n", err)
+        }
+      }
+    }
     client.Close()
   }()
 
@@ -321,8 +329,10 @@ func (client *TCPConnection)writeLoop() {
       return
 
     case packet := <-client.messageSendChan:
-      if _, err := client.conn.Write(packet); err != nil {
-        log.Printf("Error writing data - %s\n", err)
+      if packet != nil {
+        if _, err := client.conn.Write(packet); err != nil {
+          log.Printf("Error writing data - %s\n", err)
+        }
       }
     }
   }
