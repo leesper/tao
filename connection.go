@@ -159,13 +159,16 @@ func (client *TCPConnection)IsClosed() bool {
 }
 
 func (client *TCPConnection)Close() {
+  // log.Println("TCPConnetion CLOSE")
   client.closeOnce.Do(func() {
     if client.closed.CompareAndSet(false, true) {
       close(client.closeConnChan)
       close(client.messageSendChan)
       close(client.handlerRecvChan)
       close(client.timeOutChan)
-      client.wg.Wait()
+      log.Println("WaitGroup Wait")
+
+      log.Println("WaitGroup AfterWait")
       client.conn.Close()
 
       if (client.onClose != nil) {
@@ -173,13 +176,16 @@ func (client *TCPConnection)Close() {
       }
 
       if client.isServerMode() {
-        client.Owner.connections.Remove(client.netid)
+        if !client.Owner.connections.Remove(client.netid) {
+          log.Println("Remove error!")
+        }
         for _, id := range client.pendingTimers {
           client.CancelTimer(id)
         }
       } else {
         client.Reconnect()
       }
+      log.Println("Connection closed, now ", client.Owner.connections.Size())
     }
   })
 }
@@ -209,6 +215,7 @@ func (client *TCPConnection)Do() {
   client.startLoop(client.readLoop)
   client.startLoop(client.writeLoop)
   client.startLoop(client.handleLoop)
+  // client.wg.Wait()
 }
 
 func (client *TCPConnection)RunAt(t time.Time, cb func(time.Time, interface{})) int64 {
@@ -251,9 +258,11 @@ func (client *TCPConnection)CancelTimer(timerId int64) {
 }
 
 func (client *TCPConnection)startLoop(looper func()) {
+  log.Println("WaitGroup ADD")
   client.wg.Add(1)
   go func() {
     looper()
+    log.Println("WaitGroup Done")
     client.wg.Done()
   }()
 }
@@ -266,13 +275,17 @@ func (client *TCPConnection) RawConn() net.Conn {
 then find corresponding handler, put it into channel */
 func (client *TCPConnection)readLoop() {
   defer func() {
+
     recover()
+    log.Println("readLoop return")
     client.Close()
+
   }()
 
   for {
     select {
     case <-client.closeConnChan:
+      log.Println("readLoop get close")
       return
 
     default:
@@ -312,20 +325,24 @@ func (client *TCPConnection)readLoop() {
 then blocking write into connection */
 func (client *TCPConnection)writeLoop() {
   defer func() {
+
     recover()
-    for packet := range client.messageSendChan {
-      if packet != nil {
-        if _, err := client.conn.Write(packet); err != nil {
-          log.Printf("Error writing data - %s\n", err)
-        }
-      }
-    }
+    log.Println("writeLoop return")
+    // for packet := range client.messageSendChan {
+    //   if packet != nil {
+    //     if _, err := client.conn.Write(packet); err != nil {
+    //       log.Printf("Error writing data - %s\n", err)
+    //     }
+    //   }
+    // }
     client.Close()
+
   }()
 
   for {
     select {
     case <-client.closeConnChan:
+      log.Println("writeLoop get close")
       return
 
     case packet := <-client.messageSendChan:
@@ -351,13 +368,17 @@ func (client *TCPConnection)handleLoop() {
 
 func (client *TCPConnection)handleServerMode() {
   defer func() {
+
     recover()
+    log.Println("handleLoop return")
     client.Close()
+
   }()
 
   for {
     select {
     case <-client.closeConnChan:
+      log.Println("handleServerMode get close")
       return
 
     case handler := <-client.handlerRecvChan:
@@ -383,13 +404,17 @@ func (client *TCPConnection)handleServerMode() {
 
 func (client *TCPConnection)handleClientMode() {
   defer func() {
+
     recover()
+    log.Println("handleLoop return")
     client.Close()
+
   }()
 
   for {
     select {
     case <-client.closeConnChan:
+      log.Println("handleClientMode get close")
       return
 
     case handler := <-client.handlerRecvChan:
