@@ -5,6 +5,7 @@ import (
   "net"
   "os"
   "time"
+  "sync"
   "crypto/tls"
   "crypto/rand"
 )
@@ -15,6 +16,7 @@ type TCPServer struct {
   netids *AtomicInt64
   timing *TimingWheel
   workerPool *WorkerPool
+  wg *sync.WaitGroup
   address string
   tlsMode bool
   certFile string
@@ -34,6 +36,7 @@ func NewTCPServer(addr string) *TCPServer {
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
     workerPool: NewWorkerPool(WORKERS),
+    wg: &sync.WaitGroup{},
     address: addr,
     tlsMode: false,
   }
@@ -48,6 +51,7 @@ func NewTLSTCPServer(addr, cert, key string) *TCPServer {
     netids: NewAtomicInt64(0),
     timing: NewTimingWheel(),
     workerPool: NewWorkerPool(WORKERS),
+    wg: &sync.WaitGroup{},
     address: addr,
     tlsMode: true,
     certFile: cert,
