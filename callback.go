@@ -4,9 +4,9 @@ import (
   "time"
 )
 
-type onConnectFunc func(*TCPConnection) bool
-type onMessageFunc func(Message, *TCPConnection)
-type onCloseFunc func(*TCPConnection)
+type onConnectFunc func(Connection) bool
+type onMessageFunc func(Message, Connection)
+type onCloseFunc func(Connection)
 type onErrorFunc func()
 type workerFunc func()
 

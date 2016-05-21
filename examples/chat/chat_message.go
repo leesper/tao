@@ -37,19 +37,21 @@ type ChatMessageHandler struct {
 
 func NewChatMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
   return ChatMessageHandler{
-    netid: net, 
+    netid: net,
     message: msg,
   }
 }
 
-func (handler ChatMessageHandler) Process(client *tao.TCPConnection) bool {
-  if client.Owner != nil {
-    connections := client.Owner.GetAllConnections()
-    for v := range connections.IterValues() {
-      c := v.(*tao.TCPConnection)
-      c.Write(handler.message)
+func (handler ChatMessageHandler) Process(conn tao.Connection) bool {
+  if serverConn, ok := conn.(*tao.ServerConnection); ok {
+    if serverConn.GetOwner() != nil {
+      connections := serverConn.GetOwner().GetAllConnections()
+      for v := range connections.IterValues() {
+        c := v.(tao.Connection)
+        c.Write(handler.message)
+      }
+      return true
     }
-    return true
   }
   return false
 }

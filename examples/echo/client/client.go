@@ -14,9 +14,9 @@ func init() {
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
 
-  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18342", tao.NewTimingWheel(), false)
+  tcpConnection := tao.NewClientConnection(0, "127.0.0.1:18342", false)
 
-  tcpConnection.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
+  tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -25,11 +25,11 @@ func main() {
     log.Printf("On error\n")
   })
 
-  tcpConnection.SetOnCloseCallback(func(client *tao.TCPConnection) {
+  tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
     log.Printf("On close\n")
   })
 
-  tcpConnection.SetOnMessageCallback(func(msg tao.Message, c *tao.TCPConnection) {
+  tcpConnection.SetOnMessageCallback(func(msg tao.Message, c tao.Connection) {
     echoMessage := msg.(echo.EchoMessage)
     log.Printf("%s\n", echoMessage.Message)
   })
@@ -39,12 +39,12 @@ func main() {
   }
 
   tcpConnection.RunAt(time.Now().Add(time.Second * 2), func(now time.Time, data interface{}) {
-    cli := data.(*tao.TCPConnection)
+    cli := data.(tao.Connection)
     log.Println("Closing after 2 seconds")
     cli.Close()
   })
 
-  tcpConnection.Do()
+  tcpConnection.Start()
 
   for i := 0; i < 3; i++ {
     err := tcpConnection.Write(echoMessage)
@@ -52,6 +52,7 @@ func main() {
       log.Println(err)
     }
   }
-  tcpConnection.Wait()
+  time.Sleep(time.Second)
+  tcpConnection.Close()
 
 }

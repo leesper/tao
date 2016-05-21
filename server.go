@@ -74,9 +74,9 @@ func (server *TCPServer) timeOutLoop() {
     case timeout := <-server.timing.TimeOutChan:
       netid := timeout.ExtraData.(int64)
       if conn, ok := server.connections.Get(netid); ok {
-        tcpConn := conn.(*TCPConnection)
-        if !tcpConn.closed.Get() {
-          tcpConn.timeOutChan<- timeout
+        tcpConn := conn.(Connection)
+        if !tcpConn.IsClosed() {
+          tcpConn.GetTimeOutChannel()<- timeout
         }
       } else {
         log.Printf("Invalid client %d\n", netid)
@@ -85,11 +85,11 @@ func (server *TCPServer) timeOutLoop() {
   }
 }
 
-func (server *TCPServer) SetOnConnectCallback(cb func(*TCPConnection) bool) {
+func (server *TCPServer) SetOnConnectCallback(cb func(Connection) bool) {
   server.onConnect = onConnectFunc(cb)
 }
 
-func (server *TCPServer) SetOnMessageCallback(cb func(Message, *TCPConnection)) {
+func (server *TCPServer) SetOnMessageCallback(cb func(Message, Connection)) {
   server.onMessage = onMessageFunc(cb)
 }
 
@@ -97,7 +97,7 @@ func (server *TCPServer) SetOnErrorCallback(cb func()) {
   server.onError = onErrorFunc(cb)
 }
 
-func (server *TCPServer) SetOnCloseCallback(cb func(*TCPConnection)) {
+func (server *TCPServer) SetOnCloseCallback(cb func(Connection)) {
   server.onClose = onCloseFunc(cb)
 }
 
@@ -143,17 +143,17 @@ func (server *TCPServer) Start() {
     /* Create a TCP connection upon accepting a new client, assign an net id
     to it, then manage it in connections map, and start it */
     netid := server.netids.GetAndIncrement()
-    tcpConn := ServerTCPConnection(netid, server, conn)
-    tcpConn.SetName(tcpConn.RemoteAddr().String())
+    tcpConn := NewServerConnection(netid, server, conn)
+    tcpConn.SetName(tcpConn.GetRemoteAddress().String())
     if server.connections.Size() < MAX_CONNECTIONS {
       if server.scheduleFunc != nil {
         tcpConn.RunEvery(server.scheduleDuration, server.scheduleFunc)
       }
       server.connections.Put(netid, tcpConn)
-      tcpConn.Do()
-      log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn, netid, server.connections.Size())
+      tcpConn.Start()
+      log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
       for v := range server.connections.IterValues() {
-        log.Printf("Client %s\n", v)
+        log.Printf("Client %s\n", v.(Connection).GetName())
       }
     } else {
       log.Printf("WARN, MAX CONNS %d, refuse\n", MAX_CONNECTIONS)
@@ -165,9 +165,8 @@ func (server *TCPServer) Start() {
 func (server *TCPServer) Close() {
   server.running.CompareAndSet(true, false)
   for v := range server.connections.IterValues() {
-    c := v.(*TCPConnection)
+    c := v.(Connection)
     c.Close()
-    c.wg.Wait()
   }
   os.Exit(0)
 }

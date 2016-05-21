@@ -88,6 +88,18 @@ func NewTimingWheel() *TimingWheel {
   return timingWheel
 }
 
+func copyTimingWheel(rhs *TimingWheel) *TimingWheel {
+  timingWheel := &TimingWheel{
+    TimeOutChan: make(chan *OnTimeOut, 1024),
+    timers: rhs.timers,
+    ticker: time.NewTicker(time.Millisecond),
+    quit: make(chan struct{}),
+  }
+  heap.Init(&timingWheel.timers)
+  go timingWheel.start()
+  return timingWheel
+}
+
 func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, to *OnTimeOut) int64 {
   if to == nil {
     return int64(-1)

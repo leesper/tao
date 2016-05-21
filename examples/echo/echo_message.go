@@ -40,7 +40,7 @@ func NewEchoMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
   }
 }
 
-func (handler EchoMessageHandler) Process(client *tao.TCPConnection) bool {
+func (handler EchoMessageHandler) Process(client tao.Connection) bool {
   echoMessage := handler.message.(EchoMessage)
   log.Printf("Receving message %s\n", echoMessage.Message)
   client.Write(handler.message)

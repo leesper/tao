@@ -17,10 +17,10 @@ func init() {
 func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage)
 
-  tcpConnection := tao.ClientTCPConnection(0, "127.0.0.1:18341", tao.NewTimingWheel(), false)
+  tcpConnection := tao.NewClientConnection(0, "127.0.0.1:18341", false)
   defer tcpConnection.Close()
 
-  tcpConnection.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
+  tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -29,18 +29,18 @@ func main() {
     log.Printf("On error\n")
   })
 
-  tcpConnection.SetOnCloseCallback(func(client *tao.TCPConnection) {
+  tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
     log.Printf("On close\n")
     os.Exit(0)
   })
 
-  tcpConnection.SetOnMessageCallback(func(msg tao.Message, client *tao.TCPConnection) {
+  tcpConnection.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
     fmt.Print(msg.(chat.ChatMessage).Info)
   })
 
   heartBeatDuration := 5 * time.Second
   tcpConnection.RunEvery(heartBeatDuration, func(now time.Time, data interface{}) {
-    cli := data.(*tao.TCPConnection)
+    cli := data.(tao.Connection)
     msg := tao.DefaultHeartBeatMessage {
       Timestamp: now.UnixNano(),
     }
@@ -48,7 +48,7 @@ func main() {
     cli.Write(msg)
   })
 
-  tcpConnection.Do()
+  tcpConnection.Start()
 
   for {
     reader := bufio.NewReader(os.Stdin)

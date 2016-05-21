@@ -28,7 +28,7 @@ type Message interface {
 }
 
 type MessageHandler interface {
-  Process(client *TCPConnection) bool
+  Process(conn Connection) bool
 }
 
 type MessageMapType map[int32]UnmarshalFunctionType
@@ -103,27 +103,27 @@ func NewDefaultHeartBeatMessageHandler(net int64, msg Message) MessageHandler {
   }
 }
 
-func (handler DefaultHeartBeatMessageHandler) Process(client *TCPConnection) bool {
+func (handler DefaultHeartBeatMessageHandler) Process(client Connection) bool {
   heartBeatMessage := handler.message.(DefaultHeartBeatMessage)
   log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
-  client.HeartBeat = heartBeatMessage.Timestamp
+  client.SetHeartBeat(heartBeatMessage.Timestamp)
   return true
 }
 
 /* Application programmer can define a custom codec themselves */
 type Codec interface {
-  Decode(*TCPConnection) (Message, error)
+  Decode(Connection) (Message, error)
   Encode(Message) ([]byte, error)
 }
 
 // use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
 type TypeLengthValueCodec struct {}
 
-func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
+func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
   typeBytes := make([]byte, NTYPE)
   lengthBytes := make([]byte, NLEN)
 
-  _, err := io.ReadFull(c.RawConn(), typeBytes)
+  _, err := io.ReadFull(c.GetRawConn(), typeBytes)
   if err != nil {
     return nil, err
   }
@@ -133,7 +133,7 @@ func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
     return nil, err
   }
 
-  _, err = io.ReadFull(c.RawConn(), lengthBytes)
+  _, err = io.ReadFull(c.GetRawConn(), lengthBytes)
   if err != nil {
     return nil, err
   }
@@ -148,7 +148,7 @@ func (codec TypeLengthValueCodec) Decode(c *TCPConnection) (Message, error) {
 
   // read real application message
   msgBytes := make([]byte, msgLen)
-  _, err = io.ReadFull(c.RawConn(), msgBytes)
+  _, err = io.ReadFull(c.GetRawConn(), msgBytes)
   if err != nil {
     return nil, err
   }

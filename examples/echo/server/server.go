@@ -30,7 +30,7 @@ func main() {
   echoServer := NewEchoServer(":18342")
   defer echoServer.Close()
 
-  echoServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
+  echoServer.SetOnConnectCallback(func(client tao.Connection) bool {
     log.Printf("On connect\n")
     return true
   })
@@ -39,11 +39,11 @@ func main() {
     log.Printf("On error\n")
   })
 
-  echoServer.SetOnCloseCallback(func(client *tao.TCPConnection) {
+  echoServer.SetOnCloseCallback(func(client tao.Connection) {
     log.Printf("Closing client\n")
   })
 
-  echoServer.SetOnMessageCallback(func(msg tao.Message, client *tao.TCPConnection) {
+  echoServer.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
     log.Printf("Receving message\n")
   })
 
