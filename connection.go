@@ -62,9 +62,9 @@ type Connection interface{
   GetRemoteAddress() net.Addr
 }
 
-type Reconnectable interface{
-  Reconnect()
-}
+// type Reconnectable interface{
+//   Reconnect()
+// }
 
 type ServerSide interface{
   GetOwner() *TCPServer
@@ -77,7 +77,7 @@ type ServerSideConnection interface{
 
 type ClientSideConnection interface{
   Connection
-  Reconnectable
+  // Reconnectable
 }
 
 // implements ServerSideConnection
@@ -310,7 +310,7 @@ func (server *ServerConnection)GetOnCloseCallback() onCloseFunc {
   return server.onClose
 }
 
-// implements ClientSideConnection
+// implements Connection
 type ClientConnection struct{
   netid int64
   name string
@@ -329,7 +329,6 @@ type ClientConnection struct{
   messageSendChan chan []byte
   handlerRecvChan chan MessageHandler
   closeConnChan chan struct{}
-  timeOutChan chan *OnTimeOut
 
   onConnect onConnectFunc
   onMessage onMessageFunc
@@ -354,29 +353,6 @@ func NewClientConnection(netid int64, address string, reconnectable bool) Connec
     messageCodec: TypeLengthValueCodec{},
     wg: &sync.WaitGroup{},
     reconnectable: reconnectable,
-    messageSendChan: make(chan []byte, 1024),
-    handlerRecvChan: make(chan MessageHandler, 1024),
-    closeConnChan: make(chan struct{}),
-  }
-}
-
-func copyClientConnection(rhs *ClientConnection) *ClientConnection {
-  c, err := net.Dial("tcp", rhs.address)
-  if err != nil {
-    log.Fatalln(err)
-  }
-  return &ClientConnection {
-    netid: rhs.netid,
-    name: rhs.name,
-    address: rhs.address,
-    heartBeat: rhs.heartBeat,
-    isClosed: NewAtomicBoolean(false),
-    pendingTimers: rhs.pendingTimers,
-    timingWheel: copyTimingWheel(rhs.timingWheel),
-    conn: c,
-    messageCodec: TypeLengthValueCodec{},
-    wg: &sync.WaitGroup{},
-    reconnectable: rhs.reconnectable,
     messageSendChan: make(chan []byte, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
@@ -484,33 +460,69 @@ func (client *ClientConnection)Close() {
       if client.GetOnCloseCallback() != nil {
         client.GetOnCloseCallback()(client)
       }
-      /* FIXME: don't stop the timing wheel and closing the wheel,
-      just leave it alone, when reconnecting, passing this wheel to the new client */ 
-      client.GetTimingWheel().Stop()
+
       close(client.GetCloseChannel())
       close(client.GetMessageSendChannel())
       close(client.GetHandlerReceiveChannel())
-      close(client.GetTimeOutChannel())
 
       // wait for all loops to finish
       go func() {
         client.wg.Wait()
       }()
       client.GetRawConn().Close()
-      client.Reconnect()
+      if client.reconnectable {
+        /* don't stop and close the timing wheel if reconnectable, just leave it alone,
+        passing this wheel to the newly-created client when reconnect */
+        client.reconnect()
+      } else {
+        client.GetTimingWheel().Stop()
+        close(client.GetTimeOutChannel())
+      }
     }
   })
 }
 
-func (client *ClientConnection)Reconnect() {
-  if client.reconnectable {
-    // netid := client.netid
-    // address := client.address
-    // reconnectable := client.reconnectable
-    // client = NewClientConnection(netid, address, reconnectable).(*ClientConnection)
-    // client.Start()
-    // log.Println("reconnect right now!")
+func (client *ClientConnection)reconnect() {
+  netid := client.GetNetId()
+  name := client.GetName()
+  address := client.address
+  pendingTimers := client.GetPendingTimers()
+  timingWheel := client.GetTimingWheel()
+  reconnectable := client.reconnectable
+  onConnect := client.GetOnConnectCallback()
+  onMessage := client.GetOnMessageCallback()
+  onClose := client.GetOnCloseCallback()
+  onError := client.GetOnErrorCallback()
+
+  c, err := net.Dial("tcp", address)
+  if err != nil {
+    log.Fatalln(err)
   }
+
+  client = &ClientConnection {
+    netid: netid,
+    name: name,
+    address: address,
+    heartBeat: time.Now().UnixNano(),
+    isClosed: NewAtomicBoolean(false),
+    pendingTimers: pendingTimers,
+    timingWheel: timingWheel,
+    conn: c,
+    messageCodec: TypeLengthValueCodec{},
+    wg: &sync.WaitGroup{},
+    reconnectable: reconnectable,
+
+    messageSendChan: make(chan []byte, 1024),
+    handlerRecvChan: make(chan MessageHandler, 1024),
+    closeConnChan: make(chan struct{}),
+
+    onConnect: onConnect,
+    onMessage: onMessage,
+    onClose: onClose,
+    onError: onError,
+  }
+  
+  client.Start()
 }
 
 func (client *ClientConnection)IsClosed() bool {
