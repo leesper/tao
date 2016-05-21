@@ -484,7 +484,7 @@ func (client *ClientConnection)Close() {
       if client.GetOnCloseCallback() != nil {
         client.GetOnCloseCallback()(client)
       }
-
+      client.GetTimingWheel().Stop()
       close(client.GetCloseChannel())
       close(client.GetMessageSendChannel())
       close(client.GetHandlerReceiveChannel())
@@ -502,7 +502,12 @@ func (client *ClientConnection)Close() {
 
 func (client *ClientConnection)Reconnect() {
   if client.reconnectable {
-    // TODO
+    // netid := client.netid
+    // address := client.address
+    // reconnectable := client.reconnectable
+    // client = NewClientConnection(netid, address, reconnectable).(*ClientConnection)
+    // client.Start()
+    // log.Println("reconnect right now!")
   }
 }
 
