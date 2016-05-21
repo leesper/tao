@@ -495,7 +495,7 @@ func (client *ClientConnection)Close() {
         client.wg.Wait()
       }()
       client.GetRawConn().Close()
-      // client.Reconnect()
+      client.Reconnect()
     }
   })
 }
