@@ -484,6 +484,8 @@ func (client *ClientConnection)Close() {
       if client.GetOnCloseCallback() != nil {
         client.GetOnCloseCallback()(client)
       }
+      /* FIXME: don't stop the timing wheel and closing the wheel,
+      just leave it alone, when reconnecting, passing this wheel to the new client */ 
       client.GetTimingWheel().Stop()
       close(client.GetCloseChannel())
       close(client.GetMessageSendChannel())
