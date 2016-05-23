@@ -14,6 +14,7 @@ var (
   ErrorIllegalData error = errors.New("More than 8M data")
   ErrorUndefined error = errors.New("Undefined message")
   ErrorNotImplemented error = errors.New("Not implemented")
+  ErrorConnClosed error = errors.New("Connection closed")
 )
 
 const (

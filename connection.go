@@ -617,6 +617,10 @@ func runEvery(conn Connection, interval time.Duration, callback func(time.Time, 
 }
 
 func asyncWrite(conn Connection, message Message) error {
+  if conn.IsClosed() {
+    return ErrorConnClosed
+  }
+  
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
     return err
