@@ -521,7 +521,7 @@ func (client *ClientConnection)reconnect() {
     onClose: onClose,
     onError: onError,
   }
-  
+
   client.Start()
 }
 
@@ -778,7 +778,6 @@ func handleClientLoop(conn Connection) {
         if extraData != conn.GetNetId() {
           log.Printf("[Warn] time out of %d running on client %d", extraData, conn.GetNetId())
         }
-        log.Println("client handle timeout")
         timeout.Callback(time.Now(), conn)
       }
     }
