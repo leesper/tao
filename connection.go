@@ -92,6 +92,7 @@ type ServerConnection struct{
   pendingTimers []int64
   conn net.Conn
   messageCodec Codec
+  finish *sync.WaitGroup
 
   messageSendChan chan []byte
   handlerRecvChan chan MessageHandler
@@ -114,6 +115,7 @@ func NewServerConnection(netid int64, server *TCPServer, conn net.Conn) Connecti
     pendingTimers: []int64{},
     conn: conn,
     messageCodec: TypeLengthValueCodec{},
+    finish: &sync.WaitGroup{},
     messageSendChan: make(chan []byte, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
@@ -175,20 +177,17 @@ func (server *ServerConnection)Start() {
     server.GetOnConnectCallback()(server)
   }
 
-  server.GetOwner().wg.Add(3)
+  server.finish.Add(3)
   go func() {
-    readLoop(server)
-    server.GetOwner().wg.Done()
+    readLoop(server, server.finish)
   }()
 
   go func() {
-    writeLoop(server)
-    server.GetOwner().wg.Done()
+    writeLoop(server, server.finish)
   }()
 
   go func() {
-    handleServerLoop(server)
-    server.GetOwner().wg.Done()
+    handleServerLoop(server, server.finish)
   }()
 }
 
@@ -205,15 +204,14 @@ func (server *ServerConnection)Close() {
       close(server.GetTimeOutChannel())
 
       // wait for all loops to finish
-      go func() {
-        server.GetOwner().wg.Wait()
-      }()
+      server.finish.Wait()
 
       server.GetRawConn().Close()
       server.GetOwner().connections.Remove(server.GetNetId())
       for _, id := range server.GetPendingTimers() {
         server.CancelTimer(id)
       }
+      server.GetOwner().finish.Done()
     }
   })
 }
@@ -323,7 +321,7 @@ type ClientConnection struct{
   timingWheel *TimingWheel
   conn net.Conn
   messageCodec Codec
-  wg *sync.WaitGroup
+  finish *sync.WaitGroup
   reconnectable bool
 
   messageSendChan chan []byte
@@ -351,7 +349,7 @@ func NewClientConnection(netid int64, address string, reconnectable bool) Connec
     timingWheel: NewTimingWheel(),
     conn: c,
     messageCodec: TypeLengthValueCodec{},
-    wg: &sync.WaitGroup{},
+    finish: &sync.WaitGroup{},
     reconnectable: reconnectable,
     messageSendChan: make(chan []byte, 1024),
     handlerRecvChan: make(chan MessageHandler, 1024),
@@ -436,21 +434,18 @@ func (client *ClientConnection)Start() {
     client.GetOnConnectCallback()(client)
   }
 
-  client.wg.Add(3)
+  client.finish.Add(3)
 
   go func() {
-    readLoop(client)
-    client.wg.Done()
+    readLoop(client, client.finish)
   }()
 
   go func() {
-    writeLoop(client)
-    client.wg.Done()
+    writeLoop(client, client.finish)
   }()
 
   go func() {
-    handleClientLoop(client)
-    client.wg.Done()
+    handleClientLoop(client, client.finish)
   }()
 }
 
@@ -466,9 +461,7 @@ func (client *ClientConnection)Close() {
       close(client.GetHandlerReceiveChannel())
 
       // wait for all loops to finish
-      go func() {
-        client.wg.Wait()
-      }()
+      client.finish.Wait()
       client.GetRawConn().Close()
       if client.reconnectable {
         /* don't stop and close the timing wheel if reconnectable, just leave it alone,
@@ -509,7 +502,7 @@ func (client *ClientConnection)reconnect() {
     timingWheel: timingWheel,
     conn: c,
     messageCodec: TypeLengthValueCodec{},
-    wg: &sync.WaitGroup{},
+    finish: &sync.WaitGroup{},
     reconnectable: reconnectable,
 
     messageSendChan: make(chan []byte, 1024),
@@ -639,16 +632,16 @@ func asyncWrite(conn Connection, message Message) error {
 
 /* readLoop() blocking read from connection, deserialize bytes into message,
 then find corresponding handler, put it into channel */
-func readLoop(conn Connection) {
+func readLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     recover()
+    finish.Done()
     conn.Close()
   }()
 
   for {
     select {
     case <-conn.GetCloseChannel():
-      log.Println("readLoop get close")
       return
 
     default:
@@ -656,12 +649,19 @@ func readLoop(conn Connection) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      log.Printf("Error decoding message - %s", err)
-      // if err == ErrorUndefined {  FIXME: for test only
-      //   // update heart beat timestamp
-      //   conn.SetHeartBeat(time.Now().UnixNano())
-      //   continue
-      // }
+      if err == ErrorUndefined{
+        // update heart beat timestamp
+        conn.SetHeartBeat(time.Now().UnixNano())
+        continue
+      }
+
+      netError, ok := err.(net.Error)
+      if ok && netError.Timeout(){
+        // time out
+        continue
+      }
+
+      log.Printf("Error decoding message - %s\n", err)
       return
     }
 
@@ -680,13 +680,15 @@ func readLoop(conn Connection) {
 
     // send handler to handleLoop
     handler := handlerFactory(conn.GetNetId(), msg)
-    conn.GetHandlerReceiveChannel()<- handler
+    if !conn.IsClosed() {
+      conn.GetHandlerReceiveChannel()<- handler
+    }
   }
 }
 
 /* writeLoop() receive message from channel, serialize it into bytes,
 then blocking write into connection */
-func writeLoop(conn Connection) {
+func writeLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     recover()
     for packet := range conn.GetMessageSendChannel() {
@@ -696,6 +698,7 @@ func writeLoop(conn Connection) {
         }
       }
     }
+    finish.Done()
     conn.Close()
   }()
 
@@ -715,9 +718,10 @@ func writeLoop(conn Connection) {
 }
 
 // handleServerLoop() - put handler or timeout callback into worker go-routines
-func handleServerLoop(conn Connection) {
+func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     recover()
+    finish.Done()
     conn.Close()
   }()
 
@@ -756,9 +760,10 @@ func handleServerLoop(conn Connection) {
 }
 
 // handleClientLoop() - run handler or timeout callback in handleLoop() go-routine
-func handleClientLoop(conn Connection) {
+func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     recover()
+    finish.Done()
     conn.Close()
   }()
 

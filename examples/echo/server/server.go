@@ -12,7 +12,7 @@ func init() {
 }
 
 type EchoServer struct {
-  *tao.TCPServer
+  tao.Server
 }
 
 func NewEchoServer(addr string) *EchoServer {
