@@ -14,7 +14,7 @@ func init() {
 }
 
 type ChatServer struct {
-  *tao.TCPServer
+  tao.Server
 }
 
 func NewChatServer(addr string) *ChatServer {

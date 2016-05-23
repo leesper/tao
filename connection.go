@@ -247,7 +247,7 @@ func (server *ServerConnection)RunEvery(interval time.Duration, callback func(ti
 }
 
 func (server *ServerConnection)GetTimingWheel() *TimingWheel {
-  return server.GetOwner().timing
+  return server.GetOwner().GetTimingWheel()
 }
 
 func (server *ServerConnection)CancelTimer(timerId int64) {
@@ -657,11 +657,11 @@ func readLoop(conn Connection) {
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
       log.Printf("Error decoding message - %s", err)
-      if err == ErrorUndefined {
-        // update heart beat timestamp
-        conn.SetHeartBeat(time.Now().UnixNano())
-        continue
-      }
+      // if err == ErrorUndefined {  FIXME: for test only
+      //   // update heart beat timestamp
+      //   conn.SetHeartBeat(time.Now().UnixNano())
+      //   continue
+      // }
       return
     }
 

@@ -9,6 +9,7 @@ type onMessageFunc func(Message, Connection)
 type onCloseFunc func(Connection)
 type onErrorFunc func()
 type workerFunc func()
+type onScheduleFunc func(time.Time, interface{})
 
 type OnTimeOut struct {
   Callback func(time.Time, interface{})
