@@ -173,9 +173,10 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
   buf := new(bytes.Buffer)
   binary.Write(buf, binary.BigEndian, msg.MessageNumber())
   binary.Write(buf, binary.BigEndian, int32(len(data)))
-  if len(data) > 0 {
-    binary.Write(buf, binary.BigEndian, data)
-  }
+  buf.Write(data)
+  // if len(data) > 0 {
+  //   binary.Write(buf, binary.BigEndian, data)
+  // }
   packet := buf.Bytes()
   return packet, nil
 }

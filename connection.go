@@ -600,6 +600,7 @@ func asyncWrite(conn Connection, message Message) error {
     return ErrorConnClosed
   }
 
+  log.Println("WHAT THE FUCK MESSAGE", message.MessageNumber())
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
     log.Println("asyncWrite", err)
@@ -641,7 +642,7 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
         // update heart beat timestamp
         conn.SetHeartBeat(time.Now().UnixNano())
         continue
-      } 
+      }
 
       netError, ok := err.(net.Error)
       if ok && netError.Timeout(){
@@ -697,6 +698,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
 
     case packet := <-conn.GetMessageSendChannel():
       if packet != nil {
+        log.Println("WHAT THE FUCK PACKET ", len(packet))
         if _, err := conn.GetRawConn().Write(packet); err != nil {
           log.Printf("Error writing data - %s\n", err)
         }
