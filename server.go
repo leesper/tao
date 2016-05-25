@@ -1,4 +1,4 @@
-package tao
+  package tao
 
 import (
   "log"
@@ -62,7 +62,7 @@ type TCPServer struct{
 }
 
 func NewTCPServer(addr string) Server {
-  server := &TCPServer {
+  return &TCPServer {
     isRunning: NewAtomicBoolean(true),
     connections: NewConcurrentMap(),
     timingWheel: NewTimingWheel(),
@@ -70,9 +70,6 @@ func NewTCPServer(addr string) Server {
     finish: &sync.WaitGroup{},
     address: addr,
   }
-  server.finish.Add(1)
-  go server.timeOutLoop()
-  return server
 }
 
 func (server *TCPServer)IsRunning() bool {
@@ -96,6 +93,9 @@ func (server *TCPServer)GetServerAddress() string {
 }
 
 func (server *TCPServer) Start() {
+  server.finish.Add(1)
+  go server.timeOutLoop()
+
   listener, err := net.Listen("tcp", server.address)
   if err != nil {
     log.Fatalln(err)
@@ -105,7 +105,8 @@ func (server *TCPServer) Start() {
   for server.IsRunning() {
     conn, err := listener.Accept()
     if err != nil {
-      log.Fatalln(err)
+      log.Println("Accept error - ", err)
+      continue
     }
 
     conn = tlsWrapper(conn)  // wrap as a tls connection if configured
