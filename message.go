@@ -126,7 +126,7 @@ func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
 
   c.GetRawConn().SetReadDeadline(time.Now().Add(500 * time.Millisecond))
   _, err := io.ReadFull(c.GetRawConn(), typeBytes)
-  
+
   if err != nil {
     return nil, err
   }
@@ -146,6 +146,7 @@ func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
     return nil, err
   }
   if msgLen > MAXLEN {
+    log.Printf("len %d, type %d\n", msgLen, msgType)
     return nil, ErrorIllegalData
   }
 

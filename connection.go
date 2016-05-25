@@ -450,6 +450,7 @@ func (client *ClientConnection)Start() {
 }
 
 func (client *ClientConnection)Close() {
+  done := false
   client.once.Do(func() {
     if client.isClosed.CompareAndSet(false, true) {
       if client.GetOnCloseCallback() != nil {
@@ -463,59 +464,36 @@ func (client *ClientConnection)Close() {
       // wait for all loops to finish
       client.finish.Wait()
       client.GetRawConn().Close()
-      if client.reconnectable {
-        /* don't stop and close the timing wheel if reconnectable, just leave it alone,
-        passing this wheel to the newly-created client when reconnect */
-        client.reconnect()
-      } else {
+      if !client.reconnectable {
+        // stop and close the timing wheel if and only if not reconnectable
         client.GetTimingWheel().Stop()
         close(client.GetTimeOutChannel())
       }
+      done = true
     }
   })
+
+  if done && client.reconnectable {
+    client.reconnect()
+  }
 }
 
 func (client *ClientConnection)reconnect() {
-  netid := client.GetNetId()
-  name := client.GetName()
-  address := client.address
-  pendingTimers := client.GetPendingTimers()
-  timingWheel := client.GetTimingWheel()
-  reconnectable := client.reconnectable
-  onConnect := client.GetOnConnectCallback()
-  onMessage := client.GetOnMessageCallback()
-  onClose := client.GetOnCloseCallback()
-  onError := client.GetOnErrorCallback()
-
-  c, err := net.Dial("tcp", address)
-  if err != nil {
-    log.Fatalln(err)
+  if client.isClosed.CompareAndSet(true, false) {
+    c, err := net.Dial("tcp", client.address)
+    if err != nil {
+      log.Fatalln(err)
+    }
+    client.name = c.RemoteAddr().String()
+    client.heartBeat = time.Now().UnixNano()
+    client.extraData = nil
+    client.once = sync.Once{}
+    client.conn = c
+    client.messageSendChan = make(chan []byte, 1024)
+    client.handlerRecvChan = make(chan MessageHandler, 1024)
+    client.closeConnChan = make(chan struct{})
+    client.Start()
   }
-
-  client = &ClientConnection {
-    netid: netid,
-    name: name,
-    address: address,
-    heartBeat: time.Now().UnixNano(),
-    isClosed: NewAtomicBoolean(false),
-    pendingTimers: pendingTimers,
-    timingWheel: timingWheel,
-    conn: c,
-    messageCodec: TypeLengthValueCodec{},
-    finish: &sync.WaitGroup{},
-    reconnectable: reconnectable,
-
-    messageSendChan: make(chan []byte, 1024),
-    handlerRecvChan: make(chan MessageHandler, 1024),
-    closeConnChan: make(chan struct{}),
-
-    onConnect: onConnect,
-    onMessage: onMessage,
-    onClose: onClose,
-    onError: onError,
-  }
-
-  client.Start()
 }
 
 func (client *ClientConnection)IsClosed() bool {
@@ -618,12 +596,18 @@ func runEvery(conn Connection, interval time.Duration, callback func(time.Time, 
 
 func asyncWrite(conn Connection, message Message) error {
   if conn.IsClosed() {
+    log.Println("asyncWrite ErrorConnClosed", conn.GetName())
     return ErrorConnClosed
   }
-  
+
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
+    log.Println("asyncWrite", err)
     return err
+  }
+
+  if message.MessageNumber() != 1000 {
+    log.Println("message ", message.MessageNumber(), conn.GetName())
   }
 
   select {
