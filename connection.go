@@ -194,6 +194,7 @@ func (server *ServerConnection)Start() {
 func (server *ServerConnection)Close() {
   server.once.Do(func(){
     if server.isClosed.CompareAndSet(false, true) {
+      server.GetOwner().connections.Remove(server.GetNetId())
       if (server.GetOnCloseCallback() != nil) {
         server.GetOnCloseCallback()(server)
       }
@@ -207,7 +208,6 @@ func (server *ServerConnection)Close() {
       server.finish.Wait()
 
       server.GetRawConn().Close()
-      server.GetOwner().connections.Remove(server.GetNetId())
       for _, id := range server.GetPendingTimers() {
         server.CancelTimer(id)
       }
@@ -600,7 +600,6 @@ func asyncWrite(conn Connection, message Message) error {
     return ErrorConnClosed
   }
 
-  log.Println("WHAT THE FUCK MESSAGE", message.MessageNumber())
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
     log.Println("asyncWrite", err)
@@ -698,7 +697,6 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
 
     case packet := <-conn.GetMessageSendChannel():
       if packet != nil {
-        log.Println("WHAT THE FUCK PACKET ", len(packet))
         if _, err := conn.GetRawConn().Write(packet); err != nil {
           log.Printf("Error writing data - %s\n", err)
         }
