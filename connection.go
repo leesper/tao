@@ -641,7 +641,7 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
         // update heart beat timestamp
         conn.SetHeartBeat(time.Now().UnixNano())
         continue
-      }
+      } 
 
       netError, ok := err.(net.Error)
       if ok && netError.Timeout(){
