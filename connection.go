@@ -208,7 +208,6 @@ func (server *ServerConnection)Close() {
       server.finish.Wait()
 
       server.GetRawConn().Close()
-      server.GetTimingWheel().Stop() // wait for TimingWheel::start() to finish
       for _, id := range server.GetPendingTimers() {
         server.CancelTimer(id)
       }
@@ -647,6 +646,9 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
       netError, ok := err.(net.Error)
       if ok && netError.Timeout(){
         // time out
+        if _, ok := conn.(*ServerConnection); ok {
+          log.Println("time out", conn.GetName())
+        }
         continue
       }
 

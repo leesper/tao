@@ -149,6 +149,7 @@ func (server *TCPServer) Close() {
     }
     close(server.closeServChan)
     server.finish.Wait()
+    server.GetTimingWheel().Stop()
     os.Exit(0)
   }
 }
