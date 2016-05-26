@@ -208,6 +208,7 @@ func (server *ServerConnection)Close() {
       server.finish.Wait()
 
       server.GetRawConn().Close()
+      server.GetTimingWheel().Stop() // wait for TimingWheel::start() to finish
       for _, id := range server.GetPendingTimers() {
         server.CancelTimer(id)
       }

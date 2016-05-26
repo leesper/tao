@@ -3,6 +3,7 @@ package tao
 import (
   "log"
   "time"
+  "sync"
   "container/heap"
 )
 
@@ -73,6 +74,7 @@ type TimingWheel struct {
   TimeOutChan chan *OnTimeOut
   timers timerQueueType
   ticker *time.Ticker
+  finish *sync.WaitGroup
   quit chan struct{}
 }
 
@@ -81,10 +83,15 @@ func NewTimingWheel() *TimingWheel {
     TimeOutChan: make(chan *OnTimeOut, 1024),
     timers: make(timerQueueType, 0),
     ticker: time.NewTicker(time.Millisecond),
+    finish: &sync.WaitGroup{},
     quit: make(chan struct{}),
   }
   heap.Init(&timingWheel.timers)
-  go timingWheel.start()
+  timingWheel.finish.Add(1)
+  go func() {
+    timingWheel.start()
+    timingWheel.finish.Done()
+  }()
   return timingWheel
 }
 
@@ -116,6 +123,7 @@ func (tw *TimingWheel) CancelTimer(timerId int64) {
 
 func (tw *TimingWheel) Stop() {
   close(tw.quit)
+  tw.finish.Wait()
 }
 
 func (tw *TimingWheel) getExpired() []*timerType {
