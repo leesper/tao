@@ -4,7 +4,7 @@ import (
   "bytes"
   "log"
   "io"
-  "time"
+  // "time"
   "encoding/binary"
 )
 
@@ -124,7 +124,7 @@ func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
   typeBytes := make([]byte, NTYPE)
   lengthBytes := make([]byte, NLEN)
 
-  c.GetRawConn().SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+  // c.GetRawConn().SetReadDeadline(time.Now().Add(500 * time.Millisecond))
   _, err := io.ReadFull(c.GetRawConn(), typeBytes)
 
   if err != nil {
