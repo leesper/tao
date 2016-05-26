@@ -107,6 +107,7 @@ type TimingWheel struct {
   ticker *time.Ticker
   finish *sync.WaitGroup
   quit chan struct{}
+  cancel chan int
 }
 
 func NewTimingWheel() *TimingWheel {
@@ -116,6 +117,7 @@ func NewTimingWheel() *TimingWheel {
     ticker: time.NewTicker(time.Millisecond),
     finish: &sync.WaitGroup{},
     quit: make(chan struct{}),
+    cancel: make(chan int, 1024),
   }
   heap.Init(timingWheel.timers)
   timingWheel.finish.Add(1)
@@ -148,7 +150,8 @@ func (tw *TimingWheel) CancelTimer(timerId int64) {
     }
   }
   if index >= 0 { // found
-    heap.Remove(tw.timers, index)
+    // heap.Remove(tw.timers, index)
+    tw.cancel<- index
   }
 }
 
@@ -190,6 +193,13 @@ func (tw *TimingWheel) update(timers []*timerType) {
 
 func (tw *TimingWheel) start() {
   for {
+    select {
+    case index := <-tw.cancel:
+      heap.Remove(tw.timers, index)
+    default:
+      // non-blocking select
+    }
+
     select {
     case <-tw.quit:
       tw.ticker.Stop()

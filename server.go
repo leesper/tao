@@ -69,6 +69,7 @@ func NewTCPServer(addr string) Server {
     workerPool: NewWorkerPool(WORKERS),
     finish: &sync.WaitGroup{},
     address: addr,
+    closeServChan: make(chan struct{}),
   }
 }
 

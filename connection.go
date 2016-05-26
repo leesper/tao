@@ -637,21 +637,11 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      if err == ErrorUndefined{
-        // update heart beat timestamp
-        conn.SetHeartBeat(time.Now().UnixNano())
-        continue
-      }
-
-      netError, ok := err.(net.Error)
-      if ok && netError.Timeout(){
-        // time out
-        if _, ok := conn.(*ServerConnection); ok {
-          log.Println("time out", conn.GetName())
-        }
-        continue
-      }
-
+      // if err == ErrorUndefined {
+      //   // update heart beat timestamp
+      //   conn.SetHeartBeat(time.Now().UnixNano())
+      //   continue
+      // }
       log.Printf("Error decoding message - %s\n", err)
       return
     }
