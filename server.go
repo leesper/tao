@@ -132,7 +132,7 @@ func (server *TCPServer) Start() {
 
       log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
       for v := range server.connections.IterValues() {
-        log.Printf("Client %s\n", v.(Connection).GetName())
+        log.Printf("Client %s %t\n", v.(Connection).GetName(), v.(Connection).IsClosed())
       }
     } else {
       log.Printf("WARN, MAX CONNS %d, refuse\n", MAX_CONNECTIONS)

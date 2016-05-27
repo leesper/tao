@@ -171,13 +171,6 @@ func (tw *TimingWheel) update(timers []*timerType) {
 func (tw *TimingWheel) start() {
   for {
     select {
-    case <-tw.quitChan:
-      tw.ticker.Stop()
-      return
-
-    case timer := <-tw.addChan:
-      heap.Push(&tw.timers, timer)
-
     case tw.sizeChan<- tw.timers.Len():
 
     case timerId := <-tw.cancelChan:
@@ -185,6 +178,18 @@ func (tw *TimingWheel) start() {
       if index >= 0 {
         heap.Remove(&tw.timers, index)
       }
+      
+    default:
+      // non-blocking select
+    }
+
+    select {
+    case <-tw.quitChan:
+      tw.ticker.Stop()
+      return
+
+    case timer := <-tw.addChan:
+      heap.Push(&tw.timers, timer)
 
     case <-tw.ticker.C:
       timers := tw.getExpired()
