@@ -640,11 +640,11 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      if err == ErrorUndefined {
-        // update heart beat timestamp
-        conn.SetHeartBeat(time.Now().UnixNano())
-        continue
-      }
+      // if err == ErrorUndefined {
+      //   // update heart beat timestamp
+      //   conn.SetHeartBeat(time.Now().UnixNano())
+      //   continue
+      // } FIXME for test
       log.Printf("Error decoding message - %s\n", err)
       return
     }
@@ -695,6 +695,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
           log.Printf("Error writing data - %s\n", err)
+          return
         }
       }
     }
