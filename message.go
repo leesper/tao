@@ -134,12 +134,19 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     bc<- typeData
   }(byteChan, errorChan)
 
-  var typeBytes []byte
   select {
   case <-c.GetCloseChannel():
     return nil, ErrorConnClosed
+
+  default:
+    // make it non-blocking select
+  }
+
+  var typeBytes []byte
+  select {
   case err = <-errorChan:
     return nil, err
+
   case typeBytes = <-byteChan:
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
