@@ -196,7 +196,7 @@ func (server *ServerConnection)Close() {
     if server.isClosed.CompareAndSet(false, true) {
       ok := server.GetOwner().connections.Remove(server.GetNetId())
       if !ok {
-        log.Printf("CONNECTION %d %s NOT REMOVED, all size %d\n",
+        log.Printf("ERROR connection %d %s remove failed, all size %d\n",
           server.GetNetId(), server.GetName(), server.GetOwner().connections.Size())
       }
       if (server.GetOnCloseCallback() != nil) {
@@ -640,11 +640,11 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      // if err == ErrorUndefined {
-      //   // update heart beat timestamp
-      //   conn.SetHeartBeat(time.Now().UnixNano())
-      //   continue
-      // }
+      if err == ErrorUndefined {
+        // update heart beat timestamp
+        conn.SetHeartBeat(time.Now().UnixNano())
+        continue
+      }
       log.Printf("Error decoding message - %s\n", err)
       return
     }
