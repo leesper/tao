@@ -549,7 +549,7 @@ func (client *ClientConnection)GetCloseChannel() chan struct{} {
 }
 
 func (client *ClientConnection)GetTimeOutChannel() chan *OnTimeOut {
-  return client.timingWheel.TimeOutChan
+  return client.timingWheel.GetTimeOutChannel()
 }
 
 func (client *ClientConnection)GetRemoteAddress() net.Addr {

@@ -8,72 +8,51 @@ import (
 )
 
 var timerIds *AtomicInt64
+
 func init() {
   log.SetFlags(log.Lshortfile | log.LstdFlags)
   timerIds = NewAtomicInt64(0)
 }
 
-// timerQueue is a thread-safe priority queue
-type timerQueue struct {
-  queue []*timerType
-  sync.RWMutex
-}
+// timerHeap is a heap-based priority queue
+type timerHeapType []*timerType
 
-func newTimerQueue() *timerQueue {
-  return &timerQueue{
-    queue: make([]*timerType, 0),
-  }
-}
-
-func (tq timerQueue) IterValues() chan *timerType {
-  vch := make(chan *timerType)
-  go func() {
-    for _, t := range tq.queue {
-      tq.RLock()
-      defer tq.RUnlock()
-      vch <- t
+func (heap timerHeapType) getIndexById(id int64) int {
+  for _, t := range heap {
+    if t.id == id {
+      return t.index
     }
-  }()
-  return vch
+  }
+  return -1
 }
 
-func (tq timerQueue) Len() int {
-  tq.RLock()
-  defer tq.RUnlock()
-  return len(tq.queue)
+func (heap timerHeapType) Len() int {
+  return len(heap)
 }
 
-func (tq timerQueue) Less(i, j int) bool {
-  tq.RLock()
-  defer tq.RUnlock()
-  return tq.queue[i].expiration.UnixNano() < tq.queue[j].expiration.UnixNano()
+func (heap timerHeapType) Less(i, j int) bool {
+  return heap[i].expiration.UnixNano() < heap[j].expiration.UnixNano()
 }
 
-func (tq timerQueue) Swap(i, j int) {
-  tq.Lock()
-  defer tq.Unlock()
-  tq.queue[i], tq.queue[j] = tq.queue[j], tq.queue[i]
-  tq.queue[i].index = i
-  tq.queue[j].index = j
+func (heap timerHeapType) Swap(i, j int) {
+  heap[i], heap[j] = heap[j], heap[i]
+  heap[i].index = i
+  heap[j].index = j
 }
 
-func (tq *timerQueue) Push(x interface{}) {
-  tq.Lock()
-  defer tq.Unlock()
-  n := len(tq.queue)
+func (heap *timerHeapType) Push(x interface{}) {
+  n := len(*heap)
   timer := x.(*timerType)
   timer.index = n
-  tq.queue = append(tq.queue, timer)
+  *heap = append(*heap, timer)
 }
 
-func (tq *timerQueue) Pop() interface{} {
-  tq.Lock()
-  defer tq.Unlock()
-  old := tq.queue
+func (heap *timerHeapType) Pop() interface{} {
+  old := *heap
   n := len(old)
   timer := old[n-1]
   timer.index = -1
-  tq.queue = old[0 : n-1]
+  *heap = old[0 : n-1]
   return timer
 }
 
@@ -102,24 +81,28 @@ func (t *timerType) isRepeat() bool {
 }
 
 type TimingWheel struct {
-  TimeOutChan chan *OnTimeOut
-  timers *timerQueue
+  timeOutChan chan *OnTimeOut
+  timers timerHeapType
   ticker *time.Ticker
   finish *sync.WaitGroup
-  quit chan struct{}
-  cancel chan int
+  addChan chan *timerType       // add timer in loop
+  cancelChan chan int64         // cancel timer in loop
+  sizeChan chan int             // get size in loop
+  quitChan chan struct{}
 }
 
 func NewTimingWheel() *TimingWheel {
   timingWheel := &TimingWheel{
-    TimeOutChan: make(chan *OnTimeOut, 1024),
-    timers: newTimerQueue(),
+    timeOutChan: make(chan *OnTimeOut, 1024),
+    timers: make(timerHeapType, 0),
     ticker: time.NewTicker(time.Millisecond),
     finish: &sync.WaitGroup{},
-    quit: make(chan struct{}),
-    cancel: make(chan int, 1024),
+    addChan: make(chan *timerType, 1024),
+    cancelChan: make(chan int64, 1024),
+    sizeChan: make(chan int),
+    quitChan: make(chan struct{}),
   }
-  heap.Init(timingWheel.timers)
+  heap.Init(&timingWheel.timers)
   timingWheel.finish.Add(1)
   go func() {
     timingWheel.start()
@@ -128,35 +111,29 @@ func NewTimingWheel() *TimingWheel {
   return timingWheel
 }
 
-func (tw *TimingWheel) AddTimer(when time.Time, interv time.Duration, to *OnTimeOut) int64 {
+func (tw *TimingWheel)GetTimeOutChannel() chan *OnTimeOut {
+  return tw.timeOutChan
+}
+
+func (tw *TimingWheel)AddTimer(when time.Time, interv time.Duration, to *OnTimeOut) int64 {
   if to == nil {
     return int64(-1)
   }
   timer := newTimer(when, interv, to)
-  heap.Push(tw.timers, timer)
+  tw.addChan<- timer
   return timer.id
 }
 
 func (tw *TimingWheel) Size() int {
-  return tw.timers.Len()
+  return <-tw.sizeChan
 }
 
-func (tw *TimingWheel) CancelTimer(timerId int64) {
-  index := -1
-  for t := range tw.timers.IterValues() {
-    if t.id == timerId {
-      index = t.index
-      break
-    }
-  }
-  if index >= 0 { // found
-    // heap.Remove(tw.timers, index)
-    tw.cancel<- index
-  }
+func (tw *TimingWheel)CancelTimer(timerId int64) {
+  tw.cancelChan<- timerId
 }
 
 func (tw *TimingWheel) Stop() {
-  close(tw.quit)
+  close(tw.quitChan)
   tw.finish.Wait()
 }
 
@@ -164,13 +141,13 @@ func (tw *TimingWheel) getExpired() []*timerType {
   expired := make([]*timerType, 0)
   now := time.Now()
   for tw.timers.Len() > 0 {
-    timer := heap.Pop(tw.timers).(*timerType)
+    timer := heap.Pop(&tw.timers).(*timerType)
     delta := float64(timer.expiration.UnixNano() - now.UnixNano()) / 1e9
     if -1.0 < delta && delta <= 0.0 {
       expired = append(expired, timer)
       continue
     } else {
-      heap.Push(tw.timers, timer)
+      heap.Push(&tw.timers, timer)
       break
     }
     if delta <= -1.0 {
@@ -185,7 +162,7 @@ func (tw *TimingWheel) update(timers []*timerType) {
     for _, t := range timers {
       if t.isRepeat() {
         t.expiration = t.expiration.Add(t.interval)
-        heap.Push(tw.timers, t)
+        heap.Push(&tw.timers, t)
       }
     }
   }
@@ -194,24 +171,27 @@ func (tw *TimingWheel) update(timers []*timerType) {
 func (tw *TimingWheel) start() {
   for {
     select {
-    case index := <-tw.cancel:
-      heap.Remove(tw.timers, index)
-    default:
-      // non-blocking select
-    }
-
-    select {
-    case <-tw.quit:
+    case <-tw.quitChan:
       tw.ticker.Stop()
       return
+
+    case timer := <-tw.addChan:
+      heap.Push(&tw.timers, timer)
+
+    case tw.sizeChan<- tw.timers.Len():
+
+    case timerId := <-tw.cancelChan:
+      index := tw.timers.getIndexById(timerId)
+      if index >= 0 {
+        heap.Remove(&tw.timers, index)
+      }
 
     case <-tw.ticker.C:
       timers := tw.getExpired()
       for _, t := range timers {
-        tw.TimeOutChan<- t.timeout
+        tw.GetTimeOutChannel()<- t.timeout
       }
       tw.update(timers)
-
     }
   }
 }

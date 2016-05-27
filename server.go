@@ -156,7 +156,7 @@ func (server *TCPServer) Close() {
 }
 
 func (server *TCPServer)GetTimeOutChannel() chan *OnTimeOut {
-  return server.timingWheel.TimeOutChan
+  return server.timingWheel.GetTimeOutChannel()
 }
 
 func (server *TCPServer)SetOnScheduleCallback(duration time.Duration, callback func(time.Time, interface{})) {
@@ -306,7 +306,7 @@ func (server *TCPServer) timeOutLoop() {
     case <-server.closeServChan:
       return
 
-    case timeout := <-server.GetTimingWheel().TimeOutChan:
+    case timeout := <-server.GetTimingWheel().GetTimeOutChannel():
       netid := timeout.ExtraData.(int64)
       if conn, ok := server.connections.Get(netid); ok {
         tcpConn := conn.(Connection)
