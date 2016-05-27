@@ -460,15 +460,12 @@ func (client *ClientConnection)Close() {
       close(client.GetCloseChannel())
       close(client.GetMessageSendChannel())
       close(client.GetHandlerReceiveChannel())
+      client.GetTimingWheel().Stop()
+      close(client.GetTimeOutChannel())
 
       // wait for all loops to finish
       client.finish.Wait()
       client.GetRawConn().Close()
-      if !client.reconnectable {
-        // stop and close the timing wheel if and only if not reconnectable
-        client.GetTimingWheel().Stop()
-        close(client.GetTimeOutChannel())
-      }
       done = true
     }
   })
@@ -488,6 +485,8 @@ func (client *ClientConnection)reconnect() {
     client.heartBeat = time.Now().UnixNano()
     client.extraData = nil
     client.once = sync.Once{}
+    client.pendingTimers = []int64{}
+    client.timingWheel = NewTimingWheel()
     client.conn = c
     client.messageSendChan = make(chan []byte, 1024)
     client.handlerRecvChan = make(chan MessageHandler, 1024)
