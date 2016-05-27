@@ -2,7 +2,7 @@ package tao
 
 import (
   "fmt"
-  "sync"
+  // "sync"
   "testing"
 )
 
@@ -16,6 +16,18 @@ func TestNewConcurrentMap(t *testing.T) {
   }
   if cm.Size() != 0 {
     t.Error("map size != 0")
+  }
+}
+
+func TestConcurrentMapPutAndRemove(t *testing.T) {
+  cm := NewConcurrentMap()
+  var i int64
+  for i = 0; i < 999999; i++ {
+    cm.Put(i, fmt.Sprintf("%d", i))
+    ok := cm.Remove(i)
+    if !ok {
+      t.Error("remove error")
+    }
   }
 }
 

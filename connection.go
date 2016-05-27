@@ -194,7 +194,11 @@ func (server *ServerConnection)Start() {
 func (server *ServerConnection)Close() {
   server.once.Do(func(){
     if server.isClosed.CompareAndSet(false, true) {
-      server.GetOwner().connections.Remove(server.GetNetId())
+      ok := server.GetOwner().connections.Remove(server.GetNetId())
+      if !ok {
+        log.Printf("CONNECTION %d %s NOT REMOVED, all size %d\n",
+          server.GetNetId(), server.GetName(), server.GetOwner().connections.Size())
+      }
       if (server.GetOnCloseCallback() != nil) {
         server.GetOnCloseCallback()(server)
       }
@@ -316,7 +320,7 @@ type ClientConnection struct{
   heartBeat int64
   extraData interface{}
   isClosed *AtomicBoolean
-  once sync.Once
+  once *sync.Once
   pendingTimers []int64
   timingWheel *TimingWheel
   conn net.Conn
@@ -345,6 +349,7 @@ func NewClientConnection(netid int64, address string, reconnectable bool) Connec
     address: address,
     heartBeat: time.Now().UnixNano(),
     isClosed: NewAtomicBoolean(false),
+    once: &sync.Once{},
     pendingTimers: []int64{},
     timingWheel: NewTimingWheel(),
     conn: c,
@@ -476,23 +481,22 @@ func (client *ClientConnection)Close() {
 }
 
 func (client *ClientConnection)reconnect() {
-  if client.isClosed.CompareAndSet(true, false) {
-    c, err := net.Dial("tcp", client.address)
-    if err != nil {
-      log.Fatalln(err)
-    }
-    client.name = c.RemoteAddr().String()
-    client.heartBeat = time.Now().UnixNano()
-    client.extraData = nil
-    client.once = sync.Once{}
-    client.pendingTimers = []int64{}
-    client.timingWheel = NewTimingWheel()
-    client.conn = c
-    client.messageSendChan = make(chan []byte, 1024)
-    client.handlerRecvChan = make(chan MessageHandler, 1024)
-    client.closeConnChan = make(chan struct{})
-    client.Start()
+  c, err := net.Dial("tcp", client.address)
+  if err != nil {
+    log.Fatalln(err)
   }
+  client.name = c.RemoteAddr().String()
+  client.heartBeat = time.Now().UnixNano()
+  client.extraData = nil
+  client.once = &sync.Once{}
+  client.pendingTimers = []int64{}
+  client.timingWheel = NewTimingWheel()
+  client.conn = c
+  client.messageSendChan = make(chan []byte, 1024)
+  client.handlerRecvChan = make(chan MessageHandler, 1024)
+  client.closeConnChan = make(chan struct{})
+  client.Start()
+  client.isClosed.CompareAndSet(true, false)
 }
 
 func (client *ClientConnection)IsClosed() bool {
