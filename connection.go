@@ -612,7 +612,9 @@ func asyncWrite(conn Connection, message Message) error {
 then find corresponding handler, put it into channel */
 func readLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
-    recover()
+    if p := recover(); p != nil {
+      log.Printf("readLoop panics: %v", p)
+    }
     finish.Done()
     conn.Close()
   }()
@@ -661,7 +663,9 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 then blocking write into connection */
 func writeLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
-    recover()
+    if p := recover(); p != nil {
+      log.Printf("readLoop panics: %v", p)
+    }
     for packet := range conn.GetMessageSendChannel() {
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
@@ -692,7 +696,9 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
 // handleServerLoop() - put handler or timeout callback into worker go-routines
 func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
-    recover()
+    if p := recover(); p != nil {
+      log.Printf("readLoop panics: %v", p)
+    }
     finish.Done()
     conn.Close()
   }()
