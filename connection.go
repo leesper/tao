@@ -664,7 +664,7 @@ then blocking write into connection */
 func writeLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("readLoop panics: %v", p)
+      log.Printf("writeLoop panics: %v", p)
     }
     for packet := range conn.GetMessageSendChannel() {
       if packet != nil {
@@ -697,7 +697,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
 func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("readLoop panics: %v", p)
+      log.Printf("handleServerLoop panics: %v", p)
     }
     finish.Done()
     conn.Close()
@@ -740,7 +740,9 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
 // handleClientLoop() - run handler or timeout callback in handleLoop() go-routine
 func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
-    recover()
+    if p := recover(); p != nil {
+      log.Printf("handleClientLoop panics: %v", p)
+    }
     finish.Done()
     conn.Close()
   }()
