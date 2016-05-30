@@ -491,6 +491,9 @@ func (client *ClientConnection)IsClosed() bool {
 }
 
 func (client *ClientConnection)Write(message Message) error {
+  if message.MessageNumber() == 1001 {
+    log.Println("writing message ", client.GetName(), message)
+  }
   return asyncWrite(client, message)
 }
 
@@ -596,10 +599,6 @@ func asyncWrite(conn Connection, message Message) error {
     return err
   }
 
-  if message.MessageNumber() != 1000 {
-    log.Println("message ", message.MessageNumber(), conn.GetName())
-  }
-
   select {
   case conn.GetMessageSendChannel()<- packet:
     return nil
@@ -627,12 +626,12 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
+      log.Printf("Error decoding message - %s\n", err)
       if err == ErrorUndefined {
         // update heart beat timestamp
         conn.SetHeartBeat(time.Now().UnixNano())
         continue
       }
-      log.Printf("Error decoding message - %s\n", err)
       return
     }
 
