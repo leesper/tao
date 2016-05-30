@@ -178,17 +178,11 @@ func (server *ServerConnection)Start() {
   }
 
   server.finish.Add(3)
-  go func() {
-    readLoop(server, server.finish)
-  }()
-
-  go func() {
-    writeLoop(server, server.finish)
-  }()
-
-  go func() {
-    handleServerLoop(server, server.finish)
-  }()
+  loopers := []func(Connection, *sync.WaitGroup) {readLoop, writeLoop, handleServerLoop}
+  for _, l := range loopers {
+    looper := l  // necessary
+    go looper(server, server.finish)
+  }
 }
 
 func (server *ServerConnection)Close() {
@@ -440,18 +434,11 @@ func (client *ClientConnection)Start() {
   }
 
   client.finish.Add(3)
-
-  go func() {
-    readLoop(client, client.finish)
-  }()
-
-  go func() {
-    writeLoop(client, client.finish)
-  }()
-
-  go func() {
-    handleClientLoop(client, client.finish)
-  }()
+  loopers := []func(Connection, *sync.WaitGroup) {readLoop, writeLoop, handleClientLoop}
+  for _, l := range loopers {
+    looper := l  // necessary
+    go looper(client, client.finish)
+  }
 }
 
 func (client *ClientConnection)Close() {
