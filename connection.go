@@ -204,7 +204,6 @@ func (server *ServerConnection)Close() {
 
       // wait for all loops to finish
       server.finish.Wait()
-
       server.GetRawConn().Close()
       for _, id := range server.GetPendingTimers() {
         server.CancelTimer(id)
@@ -589,7 +588,6 @@ func runEvery(conn Connection, interval time.Duration, callback func(time.Time, 
 
 func asyncWrite(conn Connection, message Message) error {
   if conn.IsClosed() {
-    log.Println("asyncWrite ErrorConnClosed", conn.GetName())
     return ErrorConnClosed
   }
 
