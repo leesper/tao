@@ -204,7 +204,6 @@ func (server *ServerConnection)Close() {
 
       // wait for all loops to finish
       server.finish.Wait()
-
       server.GetRawConn().Close()
       for _, id := range server.GetPendingTimers() {
         server.CancelTimer(id)
@@ -491,6 +490,9 @@ func (client *ClientConnection)IsClosed() bool {
 }
 
 func (client *ClientConnection)Write(message Message) error {
+  if message.MessageNumber() == 1001 {
+    log.Println("writing message ", client.GetName(), message)
+  }
   return asyncWrite(client, message)
 }
 
@@ -586,7 +588,6 @@ func runEvery(conn Connection, interval time.Duration, callback func(time.Time, 
 
 func asyncWrite(conn Connection, message Message) error {
   if conn.IsClosed() {
-    log.Println("asyncWrite ErrorConnClosed", conn.GetName())
     return ErrorConnClosed
   }
 
@@ -594,10 +595,6 @@ func asyncWrite(conn Connection, message Message) error {
   if err != nil {
     log.Println("asyncWrite", err)
     return err
-  }
-
-  if message.MessageNumber() != 1000 {
-    log.Println("message ", message.MessageNumber(), conn.GetName())
   }
 
   select {
@@ -629,12 +626,12 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      // if err == ErrorUndefined {
-      //   // update heart beat timestamp
-      //   conn.SetHeartBeat(time.Now().UnixNano())
-      //   continue
-      // } FIXME for test
       log.Printf("Error decoding message - %s\n", err)
+      if err == ErrorUndefined {
+        // update heart beat timestamp
+        conn.SetHeartBeat(time.Now().UnixNano())
+        continue
+      }
       return
     }
 

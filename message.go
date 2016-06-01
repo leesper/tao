@@ -134,23 +134,18 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     bc<- typeData
   }(byteChan, errorChan)
 
+  var typeBytes []byte
   select {
   case <-c.GetCloseChannel():
     return nil, ErrorConnClosed
 
-  default:
-    // make it non-blocking select
-  }
-
-  var typeBytes []byte
-  select {
   case err = <-errorChan:
     return nil, err
 
   case typeBytes = <-byteChan:
     typeBuf := bytes.NewReader(typeBytes)
     var msgType int32
-    if err = binary.Read(typeBuf, binary.BigEndian, &msgType); err != nil {
+    if err = binary.Read(typeBuf, binary.LittleEndian, &msgType); err != nil {
       return nil, err
     }
     lengthBytes := make([]byte, NLEN)
@@ -160,7 +155,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     }
     lengthBuf := bytes.NewReader(lengthBytes)
     var msgLen uint32
-    if err = binary.Read(lengthBuf, binary.BigEndian, &msgLen); err != nil {
+    if err = binary.Read(lengthBuf, binary.LittleEndian, &msgLen); err != nil {
       return nil, err
     }
     if msgLen > MAXLEN {
@@ -173,56 +168,16 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     if err != nil {
       return nil, err
     }
+
     // deserialize message from bytes
     unmarshaler := MessageMap.Get(msgType)
     if unmarshaler == nil {
+      log.Println("Undefined", msgType)
       return nil, ErrorUndefined
     }
     return unmarshaler(msgBytes)
   }
 
-  // typeBytes := make([]byte, NTYPE)
-  // lengthBytes := make([]byte, NLEN)
-  //
-  // // c.GetRawConn().SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-  // _, err := io.ReadFull(c.GetRawConn(), typeBytes)
-  //
-  // if err != nil {
-  //   return nil, err
-  // }
-  // typeBuf := bytes.NewReader(typeBytes)
-  // var msgType int32
-  // if err = binary.Read(typeBuf, binary.BigEndian, &msgType); err != nil {
-  //   return nil, err
-  // }
-  //
-  // _, err = io.ReadFull(c.GetRawConn(), lengthBytes)
-  // if err != nil {
-  //   return nil, err
-  // }
-  // lengthBuf := bytes.NewReader(lengthBytes)
-  // var msgLen uint32
-  // if err = binary.Read(lengthBuf, binary.BigEndian, &msgLen); err != nil {
-  //   return nil, err
-  // }
-  // if msgLen > MAXLEN {
-  //   log.Printf("len %d, type %d\n", msgLen, msgType)
-  //   return nil, ErrorIllegalData
-  // }
-  //
-  // // read real application message
-  // msgBytes := make([]byte, msgLen)
-  // _, err = io.ReadFull(c.GetRawConn(), msgBytes)
-  // if err != nil {
-  //   return nil, err
-  // }
-  //
-  // // deserialize message from bytes
-  // unmarshaler := MessageMap.Get(msgType)
-  // if unmarshaler == nil {
-  //   return nil, ErrorUndefined
-  // }
-  // return unmarshaler(msgBytes)
 }
 
 func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
@@ -231,8 +186,8 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
     return nil, err
   }
   buf := new(bytes.Buffer)
-  binary.Write(buf, binary.BigEndian, msg.MessageNumber())
-  binary.Write(buf, binary.BigEndian, int32(len(data)))
+  binary.Write(buf, binary.LittleEndian, msg.MessageNumber())
+  binary.Write(buf, binary.LittleEndian, int32(len(data)))
   buf.Write(data)
   // if len(data) > 0 {
   //   binary.Write(buf, binary.BigEndian, data)
