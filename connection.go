@@ -613,7 +613,7 @@ then find corresponding handler, put it into channel */
 func readLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("readLoop panics: %v", p)
+      log.Printf("readLoop panics: %v\n", p)
     }
     finish.Done()
     conn.Close()
