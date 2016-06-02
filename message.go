@@ -135,7 +135,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
   }(byteChan, errorChan)
 
   var typeBytes []byte
-  
+
   select {
   case <-c.GetCloseChannel():
     return nil, ErrorConnClosed
@@ -173,8 +173,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     // deserialize message from bytes
     unmarshaler := MessageMap.Get(msgType)
     if unmarshaler == nil {
-      log.Println("Undefined", msgType)
-      return nil, ErrorUndefined
+      return nil, Undefined(msgType)
     }
     return unmarshaler(msgBytes)
   }
