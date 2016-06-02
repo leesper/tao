@@ -135,6 +135,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
   }(byteChan, errorChan)
 
   var typeBytes []byte
+  
   select {
   case <-c.GetCloseChannel():
     return nil, ErrorConnClosed
