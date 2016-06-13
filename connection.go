@@ -5,6 +5,7 @@ import (
   "net"
   "sync"
   "time"
+  "crypto/tls"
 )
 
 const (
@@ -329,6 +330,30 @@ type ClientConnection struct{
   onMessage onMessageFunc
   onClose onCloseFunc
   onError onErrorFunc
+}
+
+func NewTLSClientConnection(netid int64, address string, reconnectable bool, config *tls.Config) Connection {
+  c, err := tls.Dial("tcp", address, config)
+  if err != nil {
+    log.Fatalln(err)
+  }
+  return &ClientConnection {
+    netid: netid,
+    name: c.RemoteAddr().String(),
+    address: address,
+    heartBeat: time.Now().UnixNano(),
+    isClosed: NewAtomicBoolean(false),
+    once: &sync.Once{},
+    pendingTimers: []int64{},
+    timingWheel: NewTimingWheel(),
+    conn: c,
+    messageCodec: TypeLengthValueCodec{},
+    finish: &sync.WaitGroup{},
+    reconnectable: reconnectable,
+    messageSendChan: make(chan []byte, 1024),
+    handlerRecvChan: make(chan MessageHandler, 1024),
+    closeConnChan: make(chan struct{}),
+  }
 }
 
 func NewClientConnection(netid int64, address string, reconnectable bool) Connection {

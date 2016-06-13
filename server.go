@@ -213,7 +213,7 @@ func NewTLSTCPServer(addr, cert, key string) Server {
     TCPServer: NewTCPServer(addr).(*TCPServer),
   }
 
-  config, err := loadTLSConfig(server.certFile, server.keyFile)
+  config, err := LoadTLSConfig(server.certFile, server.keyFile, false)
   if err != nil {
     log.Fatalln(err)
   }
@@ -320,11 +320,16 @@ func (server *TCPServer) timeOutLoop() {
   }
 }
 
-func loadTLSConfig(certFile, keyFile string) (tls.Config, error) {
+func LoadTLSConfig(certFile, keyFile string, isSkipVerify bool) (tls.Config, error) {
   var config tls.Config
   cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-  return config, err
-  config = tls.Config{Certificates: []tls.Certificate{cert}}
+  if err != nil {
+    return config, err
+  }
+  config = tls.Config{
+    Certificates: []tls.Certificate{cert},
+    InsecureSkipVerify: isSkipVerify,
+  }
   now := time.Now()
   config.Time = func() time.Time { return now }
   config.Rand = rand.Reader
