@@ -649,7 +649,6 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
       log.Printf("Error decoding message - %s\n", err)
-      log.Println("Conn", conn.GetName())
       if _, ok := err.(ErrorUndefined); ok {
         // update heart beat timestamp
         conn.SetHeartBeat(time.Now().UnixNano())
