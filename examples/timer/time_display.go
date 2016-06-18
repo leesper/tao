@@ -26,7 +26,7 @@ func main() {
   go func() {
     for i := 0; i < 20; i++ {
       select {
-      case timeout := <-wheel.TimeOutChan:
+      case timeout := <-wheel.GetTimeOutChannel():
         timeout.Callback(time.Now(), nil)
       }
     }
@@ -41,7 +41,7 @@ func main() {
   go func() {
     for i := 0; i < 10; i++ {
       select {
-      case timeout := <-wheel.TimeOutChan:
+      case timeout := <-wheel.GetTimeOutChannel():
         timeout.Callback(time.Now(), nil)
       }
     }
