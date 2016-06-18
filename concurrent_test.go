@@ -2,67 +2,91 @@ package tao
 
 import (
   "fmt"
-  // "sync"
+  "sync"
   "testing"
 )
 
 func TestNewConcurrentMap(t *testing.T) {
   cm := NewConcurrentMap()
   if cm == nil {
-    t.Error("map is nil")
+    t.Error("NewConcurrentMap() = nil, want non-nil")
   }
   if !cm.IsEmpty() {
-    t.Error("map not empty")
+    t.Error("ConcurrentMap::IsEmpty() = false")
   }
-  if cm.Size() != 0 {
-    t.Error("map size != 0")
+  if size := cm.Size(); size != 0 {
+    t.Errorf("ConcurrentMap::Size() = %d, want 0", size)
   }
 }
 
 func TestConcurrentMapPutAndRemove(t *testing.T) {
   cm := NewConcurrentMap()
   var i int64
-  for i = 0; i < 999999; i++ {
+  for i = 0; i < 10000; i++ {
     cm.Put(i, fmt.Sprintf("%d", i))
-    ok := cm.Remove(i)
-    if !ok {
-      t.Error("remove error")
+  }
+
+  if size := cm.Size(); size != 10000 {
+    t.Errorf("ConcurrentMap::Size() = %d, want 10000", size)
+  }
+
+  for i = 0; i < 10000; i++ {
+    if ok := cm.Remove(i); !ok {
+      t.Errorf("ConcurrentMap::Remove(%d) = %v", i, ok)
     }
+  }
+
+  if !cm.IsEmpty() {
+    t.Errorf("ConcurrentMap::IsEmpty() = false, size %d", cm.Size())
   }
 }
 
 func TestConcurrentMapInt(t *testing.T) {
+  key, val := 1, 10
   cm := NewConcurrentMap()
-  cm.Put(1, 10)
-  if cm.IsEmpty() {
-    t.Error("map is empty")
-  }
-  if cm.Size() != 1 {
-    t.Error("map size != 1")
+  cm.Put(key, val)
+  if size := cm.Size(); size != 1 {
+    t.Errorf("ConcurrentMap::Size() = %d, want 1", size)
   }
 
-  var val interface{}
+  var ret interface{}
   var ok bool
-  if val, ok = cm.Get(1); !ok {
-    t.Error("map get error")
+  if ret, ok = cm.Get(key); !ok {
+    t.Errorf("ConcurrentMap::Get(%d) not ok", key)
   }
-  if val.(int) != 10 {
-    t.Errorf("error value %d", val.(int))
-  }
-
-  cm.Put(1, 20)
-  if val, ok = cm.Get(1); !ok || val.(int) != 20 {
-    t.Errorf("map get error %d", val.(int))
-  }
-  if cm.IsEmpty() {
-    t.Error("map is empty")
-  }
-  if cm.Size() != 1 {
-    t.Error("map size != 1")
+  if ret.(int) != val {
+    t.Errorf("ConcurrentMap::Get(%d) = %d, want %d", key, ret.(int), val)
   }
 }
 
 func TestConcurrentMapString(t *testing.T) {
+  keysMap := map[string]bool{
+    "Lucy": false,
+    "Lily": false,
+    "Kathy": false,
+    "Joana": false,
+    "Belle": false,
+    "Fiona": false,
+  }
+
+  valuesMap := map[string]bool{
+    "Product Manager": false,
+    "Rust Programmer": false,
+    "Python": false,
+    "Golang": false,
+    "Java": false,
+    "Javascript": false,
+  }
+
+  keyValueMap := map[string]string{
+    "Lucy": "Product Manager",
+    "Lily": "Rust Programmer",
+    "Kathy": "Python",
+    "Joana": "Golang",
+    "Belle": "Java",
+    "Fiona": "Javascript",
+  }
+
   cm := NewConcurrentMap()
   cm.Put("Lucy", "Product Manager")
   cm.Put("Lily", "C++")
@@ -71,44 +95,55 @@ func TestConcurrentMapString(t *testing.T) {
   cm.Put("Belle", "Java")
   cm.PutIfAbsent("Joana", "Objective-C")
   cm.PutIfAbsent("Fiona", "Javascript")
-  if cm.Size() != 6 {
-    t.Error("map size != 6")
+
+  if size := cm.Size(); size != 6 {
+    t.Errorf("ConcurrentMap::Size() = %d, want 6", size)
   }
   cm.Put("Lily", "Rust Programmer")
-  fmt.Print("Keys: ")
+
   for key := range cm.IterKeys() {
-    fmt.Print(key.(string), " ")
+    keysMap[key.(string)] = true
   }
-  fmt.Println()
-  fmt.Println("Items: ")
+
+  for k, v := range keysMap{
+    if !v {
+      t.Errorf("Key %s not in ConcurrentMap", k)
+    }
+  }
+
+  for value := range cm.IterValues() {
+    valuesMap[value.(string)] = true
+  }
+
+  for k, v := range valuesMap{
+    if !v {
+      t.Errorf("Value %s not in ConcurrentMap", k)
+    }
+  }
+
   for item := range cm.IterItems() {
-    fmt.Printf("key %s value %s\n", item.Key.(string), item.Value.(string))
+    mapKey := item.Key.(string)
+    mapVal := item.Value.(string)
+    if keyValueMap[mapKey] != mapVal {
+      t.Errorf("ConcurrentMap[%s] != %s", mapKey, keyValueMap[mapKey])
+    }
   }
 
-  ok := cm.Remove("Lucy")
-  if !ok {
-    t.Error("Key Lucy not found")
+  if ok := cm.Remove("Lucy"); !ok {
+    t.Error(`ConcurrentMap::Remove("Lucy") = false`)
   }
 
-  if ok, _ = cm.ContainsKey("Lucy"); ok {
-    t.Error("Key Lucy not removed")
+  if ok, _ := cm.ContainsKey("Lucy"); ok {
+    t.Error(`ConcurrentMap::ContainsKey("Lucy") = true`)
   }
 
-  if ok, _ = cm.ContainsKey("Joana"); !ok {
-    t.Error("Key Joana not found")
+  if ok, _ := cm.ContainsKey("Joana"); !ok {
+    t.Error(`ConcurrentMap::ContainsKey("Joana") = false`)
   }
-
-
-  fmt.Println()
-  fmt.Print("Values: ")
-  for val := range cm.IterValues() {
-    fmt.Print(val.(string), " ")
-  }
-  fmt.Println()
 
   cm.Clear()
-  if !cm.IsEmpty() || cm.Size() != 0 {
-    t.Error("Map size error, not empty")
+  if !cm.IsEmpty() {
+    t.Errorf("ConcurrentMap::IsEmpty() = false, size %d", cm.Size())
   }
 }
 
@@ -123,8 +158,9 @@ func TestAtomicInt64(t *testing.T) {
     }()
   }
   wg.Wait()
-  if ai64.Get() != 3 {
-    t.Error("Get and increment error")
+
+  if cnt := ai64.Get(); cnt != 3 {
+    t.Errorf("AtomicInt64::Get() = %d, want 3", cnt)
   }
 
   for i := 0; i < 3; i++ {
@@ -135,7 +171,8 @@ func TestAtomicInt64(t *testing.T) {
     }()
   }
   wg.Wait()
-  if ai64.Get() != 0 {
-    t.Error("Get and decrement error")
+
+  if cnt := ai64.Get(); cnt != 0 {
+    t.Errorf("AtomicInt64::Get() = %d, want 0", cnt)
   }
 }
