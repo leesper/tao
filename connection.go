@@ -633,6 +633,7 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
       log.Printf("readLoop panics: %v\n", p)
+      printStack()
     }
     finish.Done()
     conn.Close()

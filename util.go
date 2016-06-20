@@ -5,6 +5,8 @@ import (
   "hash/fnv"
   "reflect"
   "unsafe"
+  "runtime"
+  "os"
 )
 
 type Hashable interface {
@@ -82,4 +84,10 @@ func isNil(v interface{}) bool {
   default:
     return false
   }
+}
+
+func printStack() {
+  var buf [4096]byte
+  n := runtime.Stack(buf[:], false)
+  os.Stderr.Write(buf[:n])
 }
