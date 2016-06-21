@@ -1,18 +1,14 @@
 package main
 
 import (
-  "log"
   "fmt"
   "bufio"
   "os"
   "time"
+  "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
 )
-
-func init() {
-  log.SetFlags(log.Lshortfile | log.LstdFlags)
-}
 
 func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage)
@@ -21,16 +17,16 @@ func main() {
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    log.Printf("On connect\n")
+    glog.Infoln("On connect")
     return true
   })
 
   tcpConnection.SetOnErrorCallback(func() {
-    log.Printf("On error\n")
+    glog.Infoln("On error")
   })
 
   tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    log.Printf("On close\n")
+    glog.Infoln("On close")
     os.Exit(0)
   })
 
@@ -44,12 +40,11 @@ func main() {
     msg := tao.DefaultHeartBeatMessage {
       Timestamp: now.UnixNano(),
     }
-    log.Printf("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
+    glog.Infof("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
     cli.Write(msg)
   })
 
   tcpConnection.Start()
-
   for {
     reader := bufio.NewReader(os.Stdin)
     talk, _ := reader.ReadString('\n')

@@ -2,9 +2,9 @@ package tao
 
 import (
   "bytes"
-  "log"
   "io"
   "encoding/binary"
+  "github.com/golang/glog"
 )
 
 func init() {
@@ -105,7 +105,7 @@ func NewDefaultHeartBeatMessageHandler(net int64, msg Message) MessageHandler {
 
 func (handler DefaultHeartBeatMessageHandler) Process(client Connection) bool {
   heartBeatMessage := handler.message.(DefaultHeartBeatMessage)
-  log.Printf("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
+  glog.Infof("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.SetHeartBeat(heartBeatMessage.Timestamp)
   return true
 }
@@ -160,7 +160,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
       return nil, err
     }
     if msgLen > MAXLEN {
-      log.Printf("len %d, type %d\n", msgLen, msgType)
+      glog.Errorf("len %d, type %d\n", msgLen, msgType)
       return nil, ErrorIllegalData
     }
     // read real application message

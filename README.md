@@ -68,14 +68,15 @@ Application-level heart-beating protocol;
 
     import (
       "runtime"
-      "log"
       "fmt"
+      "flag"
       "github.com/leesper/tao"
       "github.com/leesper/tao/examples/chat"
+      "github.com/golang/glog"
     )
 
     func init() {
-      log.SetFlags(log.Lshortfile | log.LstdFlags)
+      flag.Parse()
     }
 
     type ChatServer struct {
@@ -100,25 +101,25 @@ Application-level heart-beating protocol;
       defer chatServer.Close()
 
       chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
-        log.Printf("On connect\n")
+        glog.Infoln("On connect")
         return true
       })
 
       chatServer.SetOnErrorCallback(func() {
-        log.Printf("On error\n")
+        glog.Infoln("On error")
       })
 
       chatServer.SetOnCloseCallback(func(client *tao.TCPConnection) {
-        log.Printf("Closing chat client\n")
+        glog.Infoln("Closing chat client")
       })
 
       heartBeatDuration := 5 * time.Second
       chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, cli *tao.TCPConnection) {
-        log.Printf("Checking client %d at %s", cli.NetId(), time.Now())
+        glog.Infof("Checking client %d at %s", cli.NetId(), time.Now())
         last := cli.HeartBeat
         period := heartBeatDuration.Nanoseconds()
         if last < now.UnixNano() - 2 * period {
-          log.Printf("Client %s netid %d timeout, close it\n", cli, cli.NetId())
+          glog.Warningf("Client %s netid %d timeout, close it\n", cli, cli.NetId())
           cli.Close()
         }
       })

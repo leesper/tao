@@ -1,16 +1,18 @@
   package tao
 
 import (
-  "log"
   "net"
   "os"
   "time"
+  "flag"
   "sync"
   "crypto/tls"
   "crypto/rand"
+  "github.com/golang/glog"
 )
 
 func init() {
+  flag.Parse()
   netIdentifier = NewAtomicInt64(0)
   tlsWrapper = func(conn net.Conn) net.Conn {
     return conn
@@ -99,14 +101,14 @@ func (server *TCPServer) Start() {
 
   listener, err := net.Listen("tcp", server.address)
   if err != nil {
-    log.Fatalln(err)
+    glog.Fatalln(err)
   }
   defer listener.Close()
 
   for server.IsRunning() {
     conn, err := listener.Accept()
     if err != nil {
-      log.Println("Accept error - ", err)
+      glog.Errorln("Accept error - ", err)
       continue
     }
 
@@ -130,12 +132,12 @@ func (server *TCPServer) Start() {
         tcpConn.Start()
       }()
 
-      log.Printf("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
+      glog.Infof("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
       for v := range server.connections.IterValues() {
-        log.Printf("Client %s %t\n", v.(Connection).GetName(), v.(Connection).IsClosed())
+        glog.Infof("Client %s %t\n", v.(Connection).GetName(), v.(Connection).IsClosed())
       }
     } else {
-      log.Printf("WARN, MAX CONNS %d, refuse\n", MAX_CONNECTIONS)
+      glog.Warningf("MAX CONNS %d, refuse\n", MAX_CONNECTIONS)
       tcpConn.Close()
     }
   }
@@ -215,7 +217,7 @@ func NewTLSTCPServer(addr, cert, key string) Server {
 
   config, err := LoadTLSConfig(server.certFile, server.keyFile, false)
   if err != nil {
-    log.Fatalln(err)
+    glog.Fatalln(err)
   }
 
   setTLSWrapper(func(conn net.Conn) net.Conn{
@@ -314,7 +316,7 @@ func (server *TCPServer) timeOutLoop() {
           tcpConn.GetTimeOutChannel()<- timeout
         }
       } else {
-        log.Printf("Invalid client %d\n", netid)
+        glog.Warningf("Invalid client %d\n", netid)
       }
     }
   }
@@ -346,7 +348,7 @@ func LoadTLSConfig(certFile, keyFile string, isSkipVerify bool) (tls.Config, err
       tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
       tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
       tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-      tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, 
+      tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
     },
   }
   now := time.Now()

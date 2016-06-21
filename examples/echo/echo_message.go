@@ -1,7 +1,7 @@
 package echo
 
 import (
-  "log"
+  "github.com/golang/glog"
   "github.com/leesper/tao"
 )
 
@@ -42,7 +42,7 @@ func NewEchoMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
 
 func (handler EchoMessageHandler) Process(client tao.Connection) bool {
   echoMessage := handler.message.(EchoMessage)
-  log.Printf("Receving message %s\n", echoMessage.Message)
+  glog.Infof("Receving message %s\n", echoMessage.Message)
   client.Write(handler.message)
   return true
 }

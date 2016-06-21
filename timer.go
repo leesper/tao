@@ -1,16 +1,15 @@
 package tao
 
 import (
-  "log"
   "time"
   "sync"
   "container/heap"
+  "github.com/golang/glog"
 )
 
 var timerIds *AtomicInt64
 
 func init() {
-  log.SetFlags(log.Lshortfile | log.LstdFlags)
   timerIds = NewAtomicInt64(0)
 }
 
@@ -151,7 +150,7 @@ func (tw *TimingWheel) getExpired() []*timerType {
       break
     }
     if delta <= -1.0 {
-      log.Println("DELTA ", delta)
+      glog.Warningln("DELTA ", delta)
     }
   }
   return expired
@@ -178,7 +177,7 @@ func (tw *TimingWheel) start() {
       if index >= 0 {
         heap.Remove(&tw.timers, index)
       }
-      
+
     default:
       // non-blocking select
     }

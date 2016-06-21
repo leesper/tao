@@ -2,14 +2,10 @@ package main
 
 import (
   "runtime"
-  "log"
+  "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/echo"
 )
-
-func init() {
-  log.SetFlags(log.Lshortfile | log.LstdFlags)
-}
 
 type EchoServer struct {
   tao.Server
@@ -31,20 +27,20 @@ func main() {
   defer echoServer.Close()
 
   echoServer.SetOnConnectCallback(func(client tao.Connection) bool {
-    log.Printf("On connect\n")
+    glog.Infoln("On connect")
     return true
   })
 
   echoServer.SetOnErrorCallback(func() {
-    log.Printf("On error\n")
+    glog.Infoln("On error")
   })
 
   echoServer.SetOnCloseCallback(func(client tao.Connection) {
-    log.Printf("Closing client\n")
+    glog.Infoln("Closing client")
   })
 
   echoServer.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
-    log.Printf("Receving message\n")
+    glog.Infoln("Receving message")
   })
 
   echoServer.Start()

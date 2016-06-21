@@ -1,15 +1,12 @@
 package main
 
 import (
-  "log"
   "time"
+  "fmt"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/echo"
+  "github.com/golang/glog"
 )
-
-func init() {
-  log.SetFlags(log.Lshortfile | log.LstdFlags)
-}
 
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
@@ -17,21 +14,21 @@ func main() {
   tcpConnection := tao.NewClientConnection(0, "127.0.0.1:18342", false)
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    log.Printf("On connect\n")
+    glog.Infoln("On connect")
     return true
   })
 
   tcpConnection.SetOnErrorCallback(func() {
-    log.Printf("On error\n")
+    glog.Infoln("On error")
   })
 
   tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    log.Printf("On close\n")
+    glog.Infoln("On close")
   })
 
   tcpConnection.SetOnMessageCallback(func(msg tao.Message, c tao.Connection) {
     echoMessage := msg.(echo.EchoMessage)
-    log.Printf("%s\n", echoMessage.Message)
+    fmt.Printf("%s\n", echoMessage.Message)
   })
 
   echoMessage := echo.EchoMessage{
@@ -40,7 +37,7 @@ func main() {
 
   tcpConnection.RunAt(time.Now().Add(time.Second * 2), func(now time.Time, data interface{}) {
     cli := data.(tao.Connection)
-    log.Println("Closing after 2 seconds")
+    glog.Infoln("Closing after 2 seconds")
     cli.Close()
   })
 
@@ -49,7 +46,7 @@ func main() {
   for i := 0; i < 3; i++ {
     err := tcpConnection.Write(echoMessage)
     if err != nil {
-      log.Println(err)
+      glog.Errorln(err)
     }
   }
   time.Sleep(time.Second)

@@ -1,11 +1,11 @@
 package tao
 
 import (
-  "log"
   "net"
   "sync"
   "time"
   "crypto/tls"
+  "github.com/golang/glog"
 )
 
 const (
@@ -191,7 +191,7 @@ func (server *ServerConnection)Close() {
     if server.isClosed.CompareAndSet(false, true) {
       ok := server.GetOwner().connections.Remove(server.GetNetId())
       if !ok {
-        log.Printf("ERROR connection %d %s remove failed, all size %d\n",
+        glog.Errorf("ServerConnection conn %d %s remove failed, all size %d\n",
           server.GetNetId(), server.GetName(), server.GetOwner().connections.Size())
       }
       if (server.GetOnCloseCallback() != nil) {
@@ -335,7 +335,7 @@ type ClientConnection struct{
 func NewTLSClientConnection(netid int64, address string, reconnectable bool, config *tls.Config) Connection {
   c, err := tls.Dial("tcp", address, config)
   if err != nil {
-    log.Fatalln(err)
+    glog.Fatalln("NewTLSClientConnection", err)
   }
   return &ClientConnection {
     netid: netid,
@@ -359,7 +359,7 @@ func NewTLSClientConnection(netid int64, address string, reconnectable bool, con
 func NewClientConnection(netid int64, address string, reconnectable bool) Connection {
   c, err := net.Dial("tcp", address)
   if err != nil {
-    log.Fatalln(err)
+    glog.Fatalln("NewClientConnection", err)
   }
   return &ClientConnection {
     netid: netid,
@@ -494,7 +494,7 @@ func (client *ClientConnection)Close() {
 func (client *ClientConnection)reconnect() {
   c, err := net.Dial("tcp", client.address)
   if err != nil {
-    log.Fatalln(err)
+    glog.Fatalln("ClientConnection", err)
   }
   client.name = c.RemoteAddr().String()
   client.heartBeat = time.Now().UnixNano()
@@ -615,7 +615,7 @@ func asyncWrite(conn Connection, message Message) error {
 
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
-    log.Println("asyncWrite", err)
+    glog.Errorln("asyncWrite", err)
     return err
   }
 
@@ -632,8 +632,7 @@ then find corresponding handler, put it into channel */
 func readLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("readLoop panics: %v\n", p)
-      printStack()
+      glog.Errorf("readLoop panics: %v\n", p)
     }
     finish.Done()
     conn.Close()
@@ -649,7 +648,7 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      log.Printf("Error decoding message - %s\n", err)
+      glog.Errorf("readLoop Error decoding message - %s\n", err)
       if _, ok := err.(ErrorUndefined); ok {
         // update heart beat timestamp
         conn.SetHeartBeat(time.Now().UnixNano())
@@ -663,10 +662,10 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
     handlerFactory := HandlerMap.Get(msg.MessageNumber())
     if handlerFactory == nil {
       if conn.GetOnMessageCallback() != nil {
-        log.Printf("Message %d call onMessage()\n", msg.MessageNumber())
+        glog.Infof("readLoop Message %d call onMessage()\n", msg.MessageNumber())
         conn.GetOnMessageCallback()(msg, conn)
       } else {
-        log.Printf("No handler or onMessage() found for message %d", msg.MessageNumber())
+        glog.Infof("readLoop No handler or onMessage() found for message %d", msg.MessageNumber())
       }
       continue
     }
@@ -684,12 +683,12 @@ then blocking write into connection */
 func writeLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("writeLoop panics: %v", p)
+      glog.Errorf("writeLoop panics: %v", p)
     }
     for packet := range conn.GetMessageSendChannel() {
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
-          log.Printf("Error writing data - %s\n", err)
+          glog.Errorf("writeLoop Error writing data - %s\n", err)
         }
       }
     }
@@ -705,7 +704,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
     case packet := <-conn.GetMessageSendChannel():
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
-          log.Printf("Error writing data - %s\n", err)
+          glog.Errorf("writeLoop Error writing data - %s\n", err)
           return
         }
       }
@@ -717,7 +716,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
 func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("handleServerLoop panics: %v", p)
+      glog.Errorf("handleServerLoop panics: %v", p)
     }
     finish.Done()
     conn.Close()
@@ -742,7 +741,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
       if timeout != nil {
         extraData := timeout.ExtraData.(int64)
         if extraData != conn.GetNetId() {
-          log.Printf("[Warn] time out of %d running on client %d", extraData, conn.GetNetId())
+          glog.Warningf("handleServerLoop time out of %d running on client %d", extraData, conn.GetNetId())
         }
         serverConn, ok := conn.(*ServerConnection)
         if ok {
@@ -750,7 +749,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
             timeout.Callback(time.Now(), conn)
           })
         } else {
-          log.Printf("[Fatal] conn %s is not of type *ServerConnection\n", conn.GetName())
+          glog.Errorf("handleServerLoop conn %s is not of type *ServerConnection\n", conn.GetName())
         }
       }
     }
@@ -761,7 +760,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
 func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      log.Printf("handleClientLoop panics: %v", p)
+      glog.Errorf("handleClientLoop panics: %v", p)
     }
     finish.Done()
     conn.Close()
@@ -781,7 +780,7 @@ func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
       if timeout != nil {
         extraData := timeout.ExtraData.(int64)
         if extraData != conn.GetNetId() {
-          log.Printf("[Warn] time out of %d running on client %d", extraData, conn.GetNetId())
+          glog.Warningf("handleClientLoop time out of %d running on client %d", extraData, conn.GetNetId())
         }
         timeout.Callback(time.Now(), conn)
       }
