@@ -105,7 +105,6 @@ func NewDefaultHeartBeatMessageHandler(net int64, msg Message) MessageHandler {
 
 func (handler DefaultHeartBeatMessageHandler) Process(client Connection) bool {
   heartBeatMessage := handler.message.(DefaultHeartBeatMessage)
-  glog.Infof("Receiving heart beat at %d, updating\n", heartBeatMessage.Timestamp)
   client.SetHeartBeat(heartBeatMessage.Timestamp)
   return true
 }
