@@ -19,6 +19,10 @@ var (
   buf *bytes.Buffer
 )
 
+const (
+  DEFAULT_HEART_BEAT = 0
+)
+
 type NewHandlerFunctionType func(int64, Message) MessageHandler
 type UnmarshalFunctionType func([]byte) (Message, error)
 
@@ -73,7 +77,7 @@ func (dhbm DefaultHeartBeatMessage) Serialize() ([]byte, error) {
 }
 
 func (dhbm DefaultHeartBeatMessage) MessageNumber() int32 {
-  return 0
+  return DEFAULT_HEART_BEAT
 }
 
 func DeserializeDefaultHeartBeatMessage(data []byte) (message Message, err error) {
