@@ -11,6 +11,7 @@ import (
   "fmt"
   "sync"
   "sync/atomic"
+
 )
 
 type AtomicInt64 int64
@@ -323,15 +324,16 @@ func (cm *ConcurrentMap) ContainsKey(k interface{}) (bool, error) {
   }
 }
 
-func (cm *ConcurrentMap)Remove(k interface{}) bool {
+func (cm *ConcurrentMap)Remove(k interface{}) error {
   if isNil(k) {
-    return false
+    return fmt.Errorf("key %v is nil", k)
   }
   if shard, err := cm.shardFor(k); err != nil {
-    return false
+    return fmt.Errorf("shardFor error %v")
   } else {
-    return shard.remove(k)
+    shard.remove(k)
   }
+  return nil
 }
 
 func (cm *ConcurrentMap)IsEmpty() bool {
