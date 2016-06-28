@@ -189,11 +189,10 @@ func (server *ServerConnection)Start() {
 func (server *ServerConnection)Close() {
   server.once.Do(func(){
     if server.isClosed.CompareAndSet(false, true) {
-      err := server.GetOwner().connections.Remove(server.GetNetId())
-      if err != nil {
-        glog.Errorf("ServerConnection conn %d %s remove failed, all size %d, error %s\n",
-          server.GetNetId(), server.GetName(), server.GetOwner().connections.Size(), err)
-      }
+      server.GetOwner().connections.Remove(server.GetNetId())
+
+      glog.Infoln("HOW MANY CONNECTIONS DO I HAVE:", server.GetOwner().connections.Size())
+
       if (server.GetOnCloseCallback() != nil) {
         server.GetOnCloseCallback()(server)
       }

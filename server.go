@@ -137,11 +137,8 @@ func (server *TCPServer) Start() {
         if c, ok := server.connections.Get(k); ok {
           conn := c.(Connection)
           if conn.IsClosed() {
-            if err = server.connections.Remove(k); err != nil {
-              glog.Errorf("Failed to remove closed connection %s net id %d, error %s", conn.GetName(), conn.GetNetId(), err)
-            } else {
-              glog.Infof("Remove closed connection %s net id %d\n", conn.GetName(), conn.GetNetId())
-            }
+            server.connections.Remove(k)
+            glog.Infof("Remove closed client %s %d\n", conn.GetName(), conn.GetNetId())
           } else {
             glog.Infof("Client %s %t\n", conn.GetName(), conn.IsClosed())
           }

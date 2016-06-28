@@ -31,9 +31,7 @@ func TestConcurrentMapPutAndRemove(t *testing.T) {
   }
 
   for i = 0; i < 10000; i++ {
-    if ok := cm.Remove(i); !ok {
-      t.Errorf("ConcurrentMap::Remove(%d) = %v", i, ok)
-    }
+    cm.Remove(i)
   }
 
   if !cm.IsEmpty() {
@@ -129,15 +127,13 @@ func TestConcurrentMapString(t *testing.T) {
     }
   }
 
-  if ok := cm.Remove("Lucy"); !ok {
-    t.Error(`ConcurrentMap::Remove("Lucy") = false`)
-  }
+  cm.Remove("Lucy")
 
-  if ok, _ := cm.ContainsKey("Lucy"); ok {
+  if ok := cm.ContainsKey("Lucy"); ok {
     t.Error(`ConcurrentMap::ContainsKey("Lucy") = true`)
   }
 
-  if ok, _ := cm.ContainsKey("Joana"); !ok {
+  if ok := cm.ContainsKey("Joana"); !ok {
     t.Error(`ConcurrentMap::ContainsKey("Joana") = false`)
   }
 

@@ -3,11 +3,85 @@ package tao
 import (
   "hash"
   "hash/fnv"
+  "os"
   "reflect"
   "unsafe"
   "runtime"
-  "os"
+  // "sync"
 )
+
+// type ConnectionMap struct{
+//   sync.RWMutex
+//   m map[int64]Connection
+// }
+//
+// func NewConnectionMap() *ConnectionMap {
+//   return &ConnectionMap{
+//     m: make(map[int64]Connection),
+//   }
+// }
+//
+// func (cm *ConnectionMap)Clear() {
+//   cm.Lock()
+//   cm.m = make(map[int64]Connection)
+//   cm.Unlock()
+// }
+//
+// func (cm *ConnectionMap)Get(k int64) (Connection, bool) {
+//   cm.RLock()
+//   conn, ok := cm.m[k]
+//   cm.RUnlock()
+//   return conn, ok
+// }
+//
+// func (cm *ConnectionMap)IterKeys() <-chan int64 {
+//   kch := make(chan int64)
+//   go func() {
+//     cm.RLock()
+//     for k, _ := range cm.m {
+//       kch<- k
+//     }
+//     cm.RUnlock()
+//     close(kch)
+//   }()
+//   return kch
+// }
+//
+// func (cm *ConnectionMap)IterValues() <-chan Connection {
+//   vch := make(chan Connection)
+//   go func() {
+//     cm.RLock()
+//     for _, v := range cm.m {
+//       vch<- v
+//     }
+//     cm.RUnlock()
+//     close(vch)
+//   }()
+//   return vch
+// }
+//
+// func (cm *ConnectionMap)Put(k int64, v Connection) {
+//   cm.Lock()
+//   cm.m[k] = v
+//   cm.Unlock()
+// }
+//
+// func (cm *ConnectionMap)Remove(k int64) {
+//   cm.Lock()
+//   delete(cm.m, k)
+//   cm.Unlock()
+// }
+//
+// func (cm *ConnectionMap)Size() int {
+//   cm.RLock()
+//   size := len(cm.m)
+//   cm.RUnlock()
+//   return size
+// }
+//
+// func (cm *ConnectionMap)IsEmpty() bool {
+//   return cm.Size() <= 0
+// }
 
 type Hashable interface {
 	HashCode() int32
@@ -21,9 +95,8 @@ func init() {
   h = fnv.New32a()
 }
 
-func hashCode(k interface{}) (uint32, error) {
+func hashCode(k interface{}) uint32 {
   var code uint32
-  var err error
   h.Reset()
 	switch v := k.(type) {
 	case bool:
@@ -67,9 +140,9 @@ func hashCode(k interface{}) (uint32, error) {
     h.Write((*((*[4]byte)(unsafe.Pointer(&c))))[:])
 		code = h.Sum32()
   default:
-    err = ErrorNotHashable
+    panic("key not hashable")
 	}
-	return code, err
+	return code
 }
 
 func isNil(v interface{}) bool {

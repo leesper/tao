@@ -276,11 +276,7 @@ func (cm *ConcurrentMap)Put(k, v interface{}) error {
   if isNil(v) {
     return ErrorNilValue
   }
-  if shard, err := cm.shardFor(k); err != nil {
-    return err
-  } else {
-    shard.put(k, v)
-  }
+  cm.shardFor(k).put(k, v)
   return nil
 }
 
@@ -291,48 +287,30 @@ func (cm *ConcurrentMap)PutIfAbsent(k, v interface{}) error {
   if isNil(v) {
     return ErrorNilValue
   }
-  if shard, err := cm.shardFor(k); err != nil {
-    return err
-  } else {
-    if _, ok := shard.get(k); !ok {
-      shard.put(k, v)
-    }
+  shard := cm.shardFor(k)
+  if _, ok := shard.get(k); !ok {
+    shard.put(k, v)
   }
   return nil
 }
 
 func (cm *ConcurrentMap)Get(k interface{}) (interface{}, bool) {
-  if isNil(k) {
-    return nil, false
-  }
-  if shard, err := cm.shardFor(k); err != nil {
-    return nil, false
-  } else {
-    return shard.get(k)
-  }
+  return cm.shardFor(k).get(k)
 }
 
-func (cm *ConcurrentMap) ContainsKey(k interface{}) (bool, error) {
+func (cm *ConcurrentMap) ContainsKey(k interface{}) bool {
   if isNil(k) {
-    return false, ErrorNilKey
+    return false
   }
-  if shard, err := cm.shardFor(k); err != nil {
-    return false, err
-  } else {
-    _, ok := shard.get(k)
-    return ok, nil
-  }
+  _, ok := cm.shardFor(k).get(k)
+  return ok
 }
 
 func (cm *ConcurrentMap)Remove(k interface{}) error {
   if isNil(k) {
-    return fmt.Errorf("key %v is nil", k)
+    return ErrorNilKey
   }
-  if shard, err := cm.shardFor(k); err != nil {
-    return fmt.Errorf("shardFor error %v")
-  } else {
-    shard.remove(k)
-  }
+  cm.shardFor(k).remove(k)
   return nil
 }
 
@@ -354,12 +332,8 @@ func (cm *ConcurrentMap)Size() int {
   return size
 }
 
-func (cm *ConcurrentMap)shardFor(k interface{}) (*syncMap, error) {
-  if code, err := hashCode(k); err != nil {
-    return nil, err
-  } else {
-    return cm.shards[code & uint32(INITIAL_SHARD_SIZE - 1)], nil
-  }
+func (cm *ConcurrentMap)shardFor(k interface{}) *syncMap {
+  return cm.shards[hashCode(k) & uint32(INITIAL_SHARD_SIZE - 1)]
 }
 
 func (cm *ConcurrentMap)IterKeys() <-chan interface{} {
@@ -441,12 +415,10 @@ func (sm *syncMap) size() int {
   return len(sm.shard)
 }
 
-func (sm *syncMap) remove(k interface{}) bool {
+func (sm *syncMap) remove(k interface{}) {
   sm.Lock()
   defer sm.Unlock()
-  _, ok := sm.shard[k]
   delete(sm.shard, k)
-  return ok
 }
 
 func (sm *syncMap) clear() {

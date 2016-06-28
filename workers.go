@@ -29,11 +29,7 @@ func NewWorkerPool(vol int) *WorkerPool {
 }
 
 func (wp *WorkerPool) Put(k interface{}, cb func()) error {
-  var code uint32
-  var err error
-  if code, err = hashCode(k); err != nil {
-    return err
-  }
+  code := hashCode(k)
   return wp.workers[code & uint32(len(wp.workers) - 1)].put(workerFunc(cb))
 }
 
