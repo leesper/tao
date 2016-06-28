@@ -26,7 +26,7 @@ var (
 
 type Server interface{
   IsRunning() bool
-  GetAllConnections() *ConcurrentMap
+  GetAllConnections() *ConnectionMap
   GetTimingWheel() *TimingWheel
   GetWorkerPool() *WorkerPool
   GetServerAddress() string
@@ -47,7 +47,7 @@ type Server interface{
 
 type TCPServer struct{
   isRunning *AtomicBoolean
-  connections *ConcurrentMap
+  connections *ConnectionMap
   timingWheel *TimingWheel
   workerPool *WorkerPool
   finish *sync.WaitGroup
@@ -66,7 +66,7 @@ type TCPServer struct{
 func NewTCPServer(addr string) Server {
   return &TCPServer {
     isRunning: NewAtomicBoolean(true),
-    connections: NewConcurrentMap(),
+    connections: NewConnectionMap(),
     timingWheel: NewTimingWheel(),
     workerPool: NewWorkerPool(WORKERS),
     finish: &sync.WaitGroup{},
@@ -79,7 +79,7 @@ func (server *TCPServer)IsRunning() bool {
   return server.isRunning.Get()
 }
 
-func (server *TCPServer)GetAllConnections() *ConcurrentMap {
+func (server *TCPServer)GetAllConnections() *ConnectionMap {
   return server.connections
 }
 
@@ -239,7 +239,7 @@ func (server *TLSTCPServer)IsRunning() bool {
   return server.TCPServer.IsRunning()
 }
 
-func (server *TLSTCPServer)GetAllConnections() *ConcurrentMap {
+func (server *TLSTCPServer)GetAllConnections() *ConnectionMap {
   return server.TCPServer.GetAllConnections()
 }
 

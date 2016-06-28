@@ -11,7 +11,6 @@ import (
   "fmt"
   "sync"
   "sync/atomic"
-
 )
 
 type AtomicInt64 int64
