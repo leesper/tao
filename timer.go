@@ -94,7 +94,7 @@ func NewTimingWheel() *TimingWheel {
   timingWheel := &TimingWheel{
     timeOutChan: make(chan *OnTimeOut, 1024),
     timers: make(timerHeapType, 0),
-    ticker: time.NewTicker(time.Second),
+    ticker: time.NewTicker(500 * time.Millisecond),
     finish: &sync.WaitGroup{},
     addChan: make(chan *timerType, 1024),
     cancelChan: make(chan int64, 1024),
@@ -170,19 +170,14 @@ func (tw *TimingWheel) update(timers []*timerType) {
 func (tw *TimingWheel) start() {
   for {
     select {
-    case tw.sizeChan<- tw.timers.Len():
-
     case timerId := <-tw.cancelChan:
       index := tw.timers.getIndexById(timerId)
       if index >= 0 {
         heap.Remove(&tw.timers, index)
       }
 
-    default:
-      // non-blocking select
-    }
+    case tw.sizeChan<- tw.timers.Len():
 
-    select {
     case <-tw.quitChan:
       tw.ticker.Stop()
       return

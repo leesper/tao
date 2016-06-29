@@ -3,6 +3,10 @@ each client's message handler is permanently hashed into one specified
 worker to execute, so it is in-order for each client's perspective. */
 package tao
 
+import (
+  "github.com/golang/glog"
+)
+
 type WorkerPool struct {
   workers []*worker
   closeChan chan struct{}
@@ -59,7 +63,10 @@ func (w *worker) start() {
     case <-w.closeChan:
       break
     case cb := <-w.callbackChan:
+      func() {
+        defer glog.Flush()
         cb()
+      }()
     }
   }
   close(w.callbackChan)

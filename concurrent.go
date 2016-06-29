@@ -409,9 +409,11 @@ func (sm *syncMap) get(k interface{}) (interface{}, bool) {
 }
 
 func (sm *syncMap) size() int {
+  var ret int
   sm.RLock()
-  return len(sm.shard)
+  ret = len(sm.shard)
   sm.RUnlock()
+  return ret
 }
 
 func (sm *syncMap) remove(k interface{}) {
