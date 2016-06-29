@@ -94,7 +94,7 @@ func NewTimingWheel() *TimingWheel {
   timingWheel := &TimingWheel{
     timeOutChan: make(chan *OnTimeOut, 1024),
     timers: make(timerHeapType, 0),
-    ticker: time.NewTicker(time.Millisecond),
+    ticker: time.NewTicker(time.Second),
     finish: &sync.WaitGroup{},
     addChan: make(chan *timerType, 1024),
     cancelChan: make(chan int64, 1024),
