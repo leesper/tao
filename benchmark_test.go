@@ -47,31 +47,30 @@ type lockMap struct {
 
 func (t *lockMap) put(k interface{}, v interface{}) {
 	t.Lock()
-	defer t.Unlock()
 	t.m[k] = v
+	t.Unlock()
 }
 
 func (t *lockMap) putIfNotExist(k interface{}, v interface{}) (ok bool) {
 	t.Lock()
-	defer t.Unlock()
 	if _, ok = t.m[k]; !ok {
 		t.m[k] = v
 	}
+	t.Unlock()
 	return
 }
 
 func (t *lockMap) get(k interface{}) (v interface{}, ok bool) {
 	t.RLock()
-	defer t.RUnlock()
 	v, ok = t.m[k]
+	t.RUnlock()
 	return
 }
 
 func (t *lockMap) len() int {
 	t.RLock()
-	defer t.RUnlock()
 	return len(t.m)
-
+	t.RUnlock()
 }
 
 func newLockMap() *lockMap {

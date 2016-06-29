@@ -340,10 +340,10 @@ func (cm *ConcurrentMap)IterKeys() <-chan interface{} {
   go func() {
     for _, s := range cm.shards {
       s.RLock()
-      defer s.RUnlock()
       for k, _ := range s.shard {
         kch <- k
       }
+      s.RUnlock()
     }
     close(kch)
   }()
@@ -355,10 +355,10 @@ func (cm *ConcurrentMap)IterValues() <-chan interface{} {
   go func() {
     for _, s := range cm.shards {
       s.RLock()
-      defer s.RUnlock()
       for _, v := range s.shard {
         vch <- v
       }
+      s.RUnlock()
     }
     close(vch)
   }()
@@ -370,10 +370,10 @@ func (cm *ConcurrentMap)IterItems() <-chan Item {
   go func() {
     for _, s := range cm.shards {
       s.RLock()
-      defer s.RUnlock()
       for k, v := range s.shard {
         ich <- Item{k, v}
       }
+      s.RUnlock()
     }
     close(ich)
   }()
@@ -397,31 +397,31 @@ func newSyncMap()*syncMap {
 
 func (sm *syncMap) put(k, v interface{}) {
   sm.Lock()
-  defer sm.Unlock()
   sm.shard[k] = v
+  sm.Unlock()
 }
 
 func (sm *syncMap) get(k interface{}) (interface{}, bool) {
   sm.RLock()
-  defer sm.RUnlock()
   v, ok := sm.shard[k]
+  sm.RUnlock()
   return v, ok
 }
 
 func (sm *syncMap) size() int {
   sm.RLock()
-  defer sm.RUnlock()
   return len(sm.shard)
+  sm.RUnlock()
 }
 
 func (sm *syncMap) remove(k interface{}) {
   sm.Lock()
-  defer sm.Unlock()
   delete(sm.shard, k)
+  sm.Unlock()
 }
 
 func (sm *syncMap) clear() {
   sm.Lock()
-  defer sm.Unlock()
   sm.shard = make(map[interface{}]interface{})
+  sm.Unlock()
 }
