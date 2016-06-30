@@ -35,15 +35,10 @@ func main() {
     Message: "hello, world",
   }
 
-  tcpConnection.RunAt(time.Now().Add(time.Second * 2), func(now time.Time, data interface{}) {
-    cli := data.(tao.Connection)
-    glog.Infoln("Closing after 2 seconds")
-    cli.Close()
-  })
-
   tcpConnection.Start()
 
-  for i := 0; i < 3; i++ {
+  for i := 0; i < 100; i++ {
+    time.Sleep(600 * time.Millisecond)
     err := tcpConnection.Write(echoMessage)
     if err != nil {
       glog.Errorln(err)

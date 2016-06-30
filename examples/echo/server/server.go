@@ -5,6 +5,7 @@ import (
   "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/echo"
+  "github.com/leesper/pangolin"
 )
 
 type EchoServer struct {
@@ -18,6 +19,8 @@ func NewEchoServer(addr string) *EchoServer {
 }
 
 func main() {
+  defer pangolin.Start(pangolin.ProfilePath("./prof")).Stop()
+
   runtime.GOMAXPROCS(runtime.NumCPU())
 
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
