@@ -701,12 +701,9 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
       msg := msgHandler.message
       handler := msgHandler.handler
       if !isNil(handler) {
-        serverConn, ok := conn.(*ServerConnection)
-        if ok {
-          serverConn.GetOwner().workerPool.Put(conn.GetNetId(), func() { // TODO make workerpool a singleton
-            handler(newContext(msg), conn)
-          })
-        }
+        WorkerPoolInstance().Put(conn.GetNetId(), func() {
+          handler(newContext(msg), conn)
+        })
       }
 
     case timeout := <-conn.GetTimeOutChannel():
@@ -715,14 +712,9 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
         if extraData != conn.GetNetId() {
           glog.Warningf("handleServerLoop time out of %d running on client %d", extraData, conn.GetNetId())
         }
-        serverConn, ok := conn.(*ServerConnection)
-        if ok {
-          serverConn.GetOwner().workerPool.Put(conn.GetNetId(), func() { // TODO make workerpool a singleton
-            timeout.Callback(time.Now(), conn)
-          })
-        } else {
-          glog.Errorf("handleServerLoop conn %s is not of type *ServerConnection\n", conn.GetName())
-        }
+        WorkerPoolInstance().Put(conn.GetNetId(), func() {
+          timeout.Callback(time.Now(), conn)
+        })
       }
     }
   }

@@ -7,12 +7,25 @@ import (
   "github.com/golang/glog"
 )
 
+// singleton 
 type WorkerPool struct {
   workers []*worker
   closeChan chan struct{}
 }
 
-func NewWorkerPool(vol int) *WorkerPool {
+var (
+  globalWorkerPool *WorkerPool
+)
+
+func init() {
+  globalWorkerPool = newWorkerPool(WORKERS)
+}
+
+func WorkerPoolInstance() *WorkerPool {
+  return globalWorkerPool
+}
+
+func newWorkerPool(vol int) *WorkerPool {
   if vol <= 0 {
     vol = WORKERS
   }

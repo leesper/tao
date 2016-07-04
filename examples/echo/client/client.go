@@ -3,6 +3,7 @@ package main
 import (
   "time"
   "fmt"
+  "net"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/echo"
   "github.com/golang/glog"
@@ -10,8 +11,12 @@ import (
 
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
+  c, err := net.Dial("tcp", "127.0.0.1:18342")
+  if err != nil {
+    glog.Fatalln(err)
+  }
 
-  tcpConnection := tao.NewClientConnection(0, "127.0.0.1:18342", false)
+  tcpConnection := tao.NewClientConnection(0, false, c)
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
     glog.Infoln("On connect")

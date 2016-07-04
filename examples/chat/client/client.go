@@ -5,6 +5,7 @@ import (
   "bufio"
   "os"
   "time"
+  "net"
   "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
@@ -13,7 +14,12 @@ import (
 func main() {
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage)
 
-  tcpConnection := tao.NewClientConnection(0, "127.0.0.1:18341", false)
+  c, err := net.Dial("tcp", "127.0.0.1:18341")
+  if err != nil {
+    glog.Fatalln(err)
+  }
+
+  tcpConnection := tao.NewClientConnection(0, false, c)
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {

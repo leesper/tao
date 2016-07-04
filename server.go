@@ -28,7 +28,6 @@ type Server interface{
   IsRunning() bool
   GetAllConnections() *ConnectionMap
   GetTimingWheel() *TimingWheel
-  GetWorkerPool() *WorkerPool
   GetServerAddress() string
   Start()
   Close()
@@ -49,7 +48,6 @@ type TCPServer struct{
   isRunning *AtomicBoolean
   connections *ConnectionMap
   timingWheel *TimingWheel
-  workerPool *WorkerPool
   finish *sync.WaitGroup
   address string
   closeServChan chan struct{}
@@ -68,7 +66,6 @@ func NewTCPServer(addr string) Server {
     isRunning: NewAtomicBoolean(true),
     connections: NewConnectionMap(),
     timingWheel: NewTimingWheel(),
-    workerPool: NewWorkerPool(WORKERS),
     finish: &sync.WaitGroup{},
     address: addr,
     closeServChan: make(chan struct{}),
@@ -85,10 +82,6 @@ func (server *TCPServer)GetAllConnections() *ConnectionMap {
 
 func (server *TCPServer)GetTimingWheel() *TimingWheel {
   return server.timingWheel
-}
-
-func (server *TCPServer)GetWorkerPool() *WorkerPool {
-  return server.workerPool
 }
 
 func (server *TCPServer)GetServerAddress() string {
@@ -245,10 +238,6 @@ func (server *TLSTCPServer)GetAllConnections() *ConnectionMap {
 
 func (server *TLSTCPServer)GetTimingWheel() *TimingWheel {
   return server.TCPServer.GetTimingWheel()
-}
-
-func (server *TLSTCPServer)GetWorkerPool() *WorkerPool {
-  return server.TCPServer.GetWorkerPool()
 }
 
 func (server *TLSTCPServer)GetServerAddress() string {
