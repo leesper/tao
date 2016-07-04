@@ -4,7 +4,6 @@ import (
   "net"
   "sync"
   "time"
-  "crypto/tls"
   "github.com/golang/glog"
 )
 
@@ -68,10 +67,6 @@ type Connection interface{
   GetRemoteAddress() net.Addr
 }
 
-// type Reconnectable interface{
-//   Reconnect()
-// }
-
 type ServerSide interface{
   GetOwner() *TCPServer
 }
@@ -134,180 +129,180 @@ func NewServerConnection(netid int64, server *TCPServer, conn net.Conn) Connecti
   return serverConn
 }
 
-func (server *ServerConnection)SetNetId(netid int64) {
-  server.netid = netid
+func (conn *ServerConnection)SetNetId(netid int64) {
+  conn.netid = netid
 }
 
-func (server *ServerConnection)GetNetId() int64 {
-  return server.netid
+func (conn *ServerConnection)GetNetId() int64 {
+  return conn.netid
 }
 
-func (server *ServerConnection)SetName(name string) {
-  server.name = name
+func (conn *ServerConnection)SetName(name string) {
+  conn.name = name
 }
 
-func (server *ServerConnection)GetName() string {
-  return server.name
+func (conn *ServerConnection)GetName() string {
+  return conn.name
 }
 
-func (server *ServerConnection)SetHeartBeat(beat int64) {
-  server.heartBeat = beat
+func (conn *ServerConnection)SetHeartBeat(beat int64) {
+  conn.heartBeat = beat
 }
 
-func (server *ServerConnection)GetHeartBeat() int64 {
-  return server.heartBeat
+func (conn *ServerConnection)GetHeartBeat() int64 {
+  return conn.heartBeat
 }
 
-func (server *ServerConnection)SetExtraData(extra interface{}) {
-  server.extraData = extra
+func (conn *ServerConnection)SetExtraData(extra interface{}) {
+  conn.extraData = extra
 }
 
 func (server *ServerConnection)GetExtraData()interface{} {
   return server.extraData
 }
 
-func (server *ServerConnection)SetMessageCodec(codec Codec) {
-  server.messageCodec = codec
+func (conn *ServerConnection)SetMessageCodec(codec Codec) {
+  conn.messageCodec = codec
 }
 
-func (server *ServerConnection)GetMessageCodec() Codec {
-  return server.messageCodec
+func (conn *ServerConnection)GetMessageCodec() Codec {
+  return conn.messageCodec
 }
 
-func (server *ServerConnection)GetOwner() *TCPServer{
-  return server.owner
+func (conn *ServerConnection)GetOwner() *TCPServer{
+  return conn.owner
 }
 
-func (server *ServerConnection)Start() {
-  if server.GetOnConnectCallback() != nil {
-    server.GetOnConnectCallback()(server)
+func (conn *ServerConnection)Start() {
+  if conn.GetOnConnectCallback() != nil {
+    conn.GetOnConnectCallback()(conn)
   }
 
-  server.finish.Add(3)
+  conn.finish.Add(3)
   loopers := []func(Connection, *sync.WaitGroup) {readLoop, writeLoop, handleServerLoop}
   for _, l := range loopers {
     looper := l  // necessary
-    go looper(server, server.finish)
+    go looper(conn, conn.finish)
   }
 }
 
-func (server *ServerConnection)Close() {
-  server.once.Do(func(){
-    if server.isClosed.CompareAndSet(false, true) {
-      server.GetOwner().connections.Remove(server.GetNetId())
+func (conn *ServerConnection)Close() {
+  conn.once.Do(func(){
+    if conn.isClosed.CompareAndSet(false, true) {
+      conn.GetOwner().connections.Remove(conn.GetNetId())
 
-      glog.Infoln("HOW MANY CONNECTIONS DO I HAVE:", server.GetOwner().connections.Size())
+      glog.Infoln("HOW MANY CONNECTIONS DO I HAVE:", conn.GetOwner().connections.Size())
 
-      if (server.GetOnCloseCallback() != nil) {
-        server.GetOnCloseCallback()(server)
+      if (conn.GetOnCloseCallback() != nil) {
+        conn.GetOnCloseCallback()(conn)
       }
 
-      close(server.GetCloseChannel())
-      close(server.GetMessageSendChannel())
-      close(server.GetMessageHandlerChannel())
-      close(server.GetTimeOutChannel())
+      close(conn.GetCloseChannel())
+      close(conn.GetMessageSendChannel())
+      close(conn.GetMessageHandlerChannel())
+      close(conn.GetTimeOutChannel())
 
       // wait for all loops to finish
-      server.finish.Wait()
-      server.GetRawConn().Close()
-      for _, id := range server.GetPendingTimers() {
-        server.CancelTimer(id)
+      conn.finish.Wait()
+      conn.GetRawConn().Close()
+      for _, id := range conn.GetPendingTimers() {
+        conn.CancelTimer(id)
       }
-      server.GetOwner().finish.Done()
+      conn.GetOwner().finish.Done()
     }
   })
 }
 
-func (server *ServerConnection)IsClosed() bool {
-  return server.isClosed.Get()
+func (conn *ServerConnection)IsClosed() bool {
+  return conn.isClosed.Get()
 }
 
-func (server *ServerConnection)SetPendingTimers(pending []int64) {
-  server.pendingTimers = pending
+func (conn *ServerConnection)SetPendingTimers(pending []int64) {
+  conn.pendingTimers = pending
 }
 
-func (server *ServerConnection)GetPendingTimers() []int64 {
-  return server.pendingTimers
+func (conn *ServerConnection)GetPendingTimers() []int64 {
+  return conn.pendingTimers
 }
 
-func (server *ServerConnection)Write(message Message) error {
-  return asyncWrite(server, message)
+func (conn *ServerConnection)Write(message Message) error {
+  return asyncWrite(conn, message)
 }
 
-func (server *ServerConnection)RunAt(timestamp time.Time, callback func(time.Time, interface{})) int64 {
-  return runAt(server, timestamp, callback)
+func (conn *ServerConnection)RunAt(timestamp time.Time, callback func(time.Time, interface{})) int64 {
+  return runAt(conn, timestamp, callback)
 }
 
-func (server *ServerConnection)RunAfter(duration time.Duration, callback func(time.Time, interface{})) int64 {
-  return runAfter(server, duration, callback)
+func (conn *ServerConnection)RunAfter(duration time.Duration, callback func(time.Time, interface{})) int64 {
+  return runAfter(conn, duration, callback)
 }
 
-func (server *ServerConnection)RunEvery(interval time.Duration, callback func(time.Time, interface{})) int64 {
-  return runEvery(server, interval, callback)
+func (conn *ServerConnection)RunEvery(interval time.Duration, callback func(time.Time, interface{})) int64 {
+  return runEvery(conn, interval, callback)
 }
 
-func (server *ServerConnection)GetTimingWheel() *TimingWheel {
-  return server.GetOwner().GetTimingWheel()
+func (conn *ServerConnection)GetTimingWheel() *TimingWheel {
+  return conn.GetOwner().GetTimingWheel()
 }
 
-func (server *ServerConnection)CancelTimer(timerId int64) {
-  server.GetTimingWheel().CancelTimer(timerId)
+func (conn *ServerConnection)CancelTimer(timerId int64) {
+  conn.GetTimingWheel().CancelTimer(timerId)
 }
 
-func (server *ServerConnection)GetRawConn() net.Conn {
-  return server.conn
+func (conn *ServerConnection)GetRawConn() net.Conn {
+  return conn.conn
 }
 
-func (server *ServerConnection)GetMessageSendChannel() chan []byte {
-  return server.messageSendChan
+func (conn *ServerConnection)GetMessageSendChannel() chan []byte {
+  return conn.messageSendChan
 }
 
-func (server *ServerConnection)GetMessageHandlerChannel() chan MessageHandler {
-  return server.messageHandlerChan
+func (conn *ServerConnection)GetMessageHandlerChannel() chan MessageHandler {
+  return conn.messageHandlerChan
 }
 
-func (server *ServerConnection)GetCloseChannel() chan struct{} {
-  return server.closeConnChan
+func (conn *ServerConnection)GetCloseChannel() chan struct{} {
+  return conn.closeConnChan
 }
 
-func (server *ServerConnection)GetTimeOutChannel() chan *OnTimeOut {
-  return server.timeOutChan
+func (conn *ServerConnection)GetTimeOutChannel() chan *OnTimeOut {
+  return conn.timeOutChan
 }
 
-func (server *ServerConnection)GetRemoteAddress() net.Addr {
-  return server.conn.RemoteAddr()
+func (conn *ServerConnection)GetRemoteAddress() net.Addr {
+  return conn.conn.RemoteAddr()
 }
 
-func (server *ServerConnection)SetOnConnectCallback(callback func(Connection) bool) {
-  server.onConnect = onConnectFunc(callback)
+func (conn *ServerConnection)SetOnConnectCallback(callback func(Connection) bool) {
+  conn.onConnect = onConnectFunc(callback)
 }
 
-func (server *ServerConnection)GetOnConnectCallback() onConnectFunc {
-  return server.onConnect
+func (conn *ServerConnection)GetOnConnectCallback() onConnectFunc {
+  return conn.onConnect
 }
 
-func (server *ServerConnection)SetOnMessageCallback(callback func(Message, Connection)) {
-  server.onMessage = onMessageFunc(callback)
+func (conn *ServerConnection)SetOnMessageCallback(callback func(Message, Connection)) {
+  conn.onMessage = onMessageFunc(callback)
 }
 
-func (server *ServerConnection)GetOnMessageCallback() onMessageFunc {
-  return server.onMessage
+func (conn *ServerConnection)GetOnMessageCallback() onMessageFunc {
+  return conn.onMessage
 }
 
-func (server *ServerConnection)SetOnErrorCallback(callback func()) {
-  server.onError = onErrorFunc(callback)
+func (conn *ServerConnection)SetOnErrorCallback(callback func()) {
+  conn.onError = onErrorFunc(callback)
 }
 
-func (server *ServerConnection)GetOnErrorCallback() onErrorFunc {
-  return server.onError
+func (conn *ServerConnection)GetOnErrorCallback() onErrorFunc {
+  return conn.onError
 }
 
-func (server *ServerConnection)SetOnCloseCallback(callback func(Connection)) {
-  server.onClose = onCloseFunc(callback)
+func (conn *ServerConnection)SetOnCloseCallback(callback func(Connection)) {
+  conn.onClose = onCloseFunc(callback)
 }
 
-func (server *ServerConnection)GetOnCloseCallback() onCloseFunc {
-  return server.onClose
+func (conn *ServerConnection)GetOnCloseCallback() onCloseFunc {
+  return conn.onClose
 }
 
 // implements Connection
@@ -336,39 +331,11 @@ type ClientConnection struct{
   onError onErrorFunc
 }
 
-func NewTLSClientConnection(netid int64, address string, reconnectable bool, config *tls.Config) Connection {
-  c, err := tls.Dial("tcp", address, config)
-  if err != nil {
-    glog.Fatalln("NewTLSClientConnection", err)
-  }
+func NewClientConnection(netid int64, reconnectable bool, c net.Conn) Connection {
   return &ClientConnection {
     netid: netid,
     name: c.RemoteAddr().String(),
-    address: address,
-    heartBeat: time.Now().UnixNano(),
-    isClosed: NewAtomicBoolean(false),
-    once: &sync.Once{},
-    pendingTimers: []int64{},
-    timingWheel: NewTimingWheel(),
-    conn: c,
-    messageCodec: TypeLengthValueCodec{},
-    finish: &sync.WaitGroup{},
-    reconnectable: reconnectable,
-    messageSendChan: make(chan []byte, 1024),
-    messageHandlerChan: make(chan MessageHandler, 1024),
-    closeConnChan: make(chan struct{}),
-  }
-}
-
-func NewClientConnection(netid int64, address string, reconnectable bool) Connection {
-  c, err := net.Dial("tcp", address)
-  if err != nil {
-    glog.Fatalln("NewClientConnection", err)
-  }
-  return &ClientConnection {
-    netid: netid,
-    name: c.RemoteAddr().String(),
-    address: address,
+    address: c.RemoteAddr().String(),
     heartBeat: time.Now().UnixNano(),
     isClosed: NewAtomicBoolean(false),
     once: &sync.Once{},
