@@ -98,10 +98,31 @@ func (server *TCPServer) Start() {
   }
   defer listener.Close()
 
+  var tempDelay time.Duration
   for server.IsRunning() {
     conn, err := listener.Accept()
     if err != nil {
-      glog.Errorln("Accept error - ", err)
+      if ne, ok := err.(net.Error); ok && ne.Temporary() {
+        if tempDelay == 0 {
+          tempDelay = 5 * time.Millisecond
+        } else {
+          tempDelay *= 2
+        }
+        if tempDelay >= 1 * time.Second {
+          tempDelay = 1 * time.Second
+        }
+        glog.Errorf("Accept error %v, retrying in %v", err, tempDelay)
+        time.Sleep(tempDelay)
+        continue
+      }
+      return
+    }
+    tempDelay = 0
+
+    connSize := server.connections.Size()
+    if server.connections.Size() >= MAX_CONNECTIONS {
+      glog.Errorf("Num of conns %d exceeding MAX %d, refuse\n", connSize, MAX_CONNECTIONS)
+      conn.Close()
       continue
     }
 
@@ -112,34 +133,29 @@ func (server *TCPServer) Start() {
     netid := netIdentifier.GetAndIncrement()
     tcpConn := NewServerConnection(netid, server, conn)
     tcpConn.SetName(tcpConn.GetRemoteAddress().String())
-    if server.connections.Size() < MAX_CONNECTIONS {
-      duration, onSchedule := server.GetOnScheduleCallback()
-      if onSchedule != nil {
-        tcpConn.RunEvery(duration, onSchedule)
-      }
-      server.connections.Put(netid, tcpConn)
+    duration, onSchedule := server.GetOnScheduleCallback()
+    if onSchedule != nil {
+      tcpConn.RunEvery(duration, onSchedule)
+    }
+    server.connections.Put(netid, tcpConn)
 
-      // put tcpConn.Start() run in another WaitGroup-synchronized go-routine
-      server.finish.Add(1)
-      go func() {
-        tcpConn.Start()
-      }()
+    // put tcpConn.Start() run in another WaitGroup-synchronized go-routine
+    server.finish.Add(1)
+    go func() {
+      tcpConn.Start()
+    }()
 
-      glog.Infof("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
-      for k := range server.connections.IterKeys() {
-        if c, ok := server.connections.Get(k); ok {
-          conn := c.(Connection)
-          if conn.IsClosed() {
-            server.connections.Remove(k)
-            glog.Infof("Remove closed client %s %d\n", conn.GetName(), conn.GetNetId())
-          } else {
-            glog.Infof("Client %s %t\n", conn.GetName(), conn.IsClosed())
-          }
+    glog.Infof("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
+    for k := range server.connections.IterKeys() {
+      if c, ok := server.connections.Get(k); ok {
+        conn := c.(Connection)
+        if conn.IsClosed() {
+          server.connections.Remove(k)
+          glog.Infof("Remove closed client %s %d\n", conn.GetName(), conn.GetNetId())
+        } else {
+          glog.Infof("Client %s %t\n", conn.GetName(), conn.IsClosed())
         }
       }
-    } else {
-      glog.Warningf("MAX CONNS %d, refuse\n", MAX_CONNECTIONS)
-      tcpConn.Close()
     }
   }
 }
