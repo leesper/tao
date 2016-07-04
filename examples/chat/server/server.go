@@ -22,11 +22,11 @@ func NewChatServer(addr string) *ChatServer {
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
 
-  tao.MessageMap.Register(tao.DefaultHeartBeatMessage{}.MessageNumber(), tao.DeserializeDefaultHeartBeatMessage)
-  tao.HandlerMap.Register(tao.DefaultHeartBeatMessage{}.MessageNumber(), tao.NewDefaultHeartBeatMessageHandler)
+  tao.MessageMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.DeserializeHeartBeatMessage)
+  tao.HandlerMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.ProcessHeartBeatMessage)
 
   tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage)
-  tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), chat.NewChatMessageHandler)
+  tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), chat.ProcessChatMessage)
 
   chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
   defer chatServer.Close()

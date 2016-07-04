@@ -28,21 +28,8 @@ func DeserializeEchoMessage(data []byte) (message tao.Message, err error) {
   return echo, nil
 }
 
-type EchoMessageHandler struct {
-  netid int64
-  message tao.Message
-}
-
-func NewEchoMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
-  return EchoMessageHandler{
-    netid: net,
-    message: msg,
-  }
-}
-
-func (handler EchoMessageHandler) Process(client tao.Connection) bool {
-  echoMessage := handler.message.(EchoMessage)
+func ProcessEchoMessage(ctx tao.Context, conn tao.Connection) {
+  echoMessage := ctx.Message().(EchoMessage)
   glog.Infof("Receving message %s\n", echoMessage.Message)
-  client.Write(handler.message)
-  return true
+  conn.Write(ctx.Message())
 }

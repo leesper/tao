@@ -23,38 +23,50 @@ const (
   DEFAULT_HEART_BEAT = 0
 )
 
-type NewHandlerFunctionType func(int64, Message) MessageHandler
-type UnmarshalFunctionType func([]byte) (Message, error)
+type HandlerFunction func(Context, Connection)
+type UnmarshalFunction func([]byte) (Message, error)
 
 type Message interface {
   MessageNumber() int32
   Serialize() ([]byte, error)
 }
 
-type MessageHandler interface {
-  Process(conn Connection) bool
+// User context info
+type Context struct{
+  message Message
+  // TODO add db support
 }
 
-type MessageMapType map[int32]UnmarshalFunctionType
+func newContext(m Message) Context {
+  return Context{
+    message: m,
+  }
+}
+
+func (ctx Context)Message() Message {
+  return ctx.message
+}
+
+type MessageMapType map[int32]UnmarshalFunction
 
 func (mm *MessageMapType) Register(msgType int32, unmarshaler func([]byte) (Message, error)) {
-  (*mm)[msgType] = UnmarshalFunctionType(unmarshaler)
+  (*mm)[msgType] = UnmarshalFunction(unmarshaler)
 }
 
-func (mm *MessageMapType) Get(msgType int32) UnmarshalFunctionType {
+func (mm *MessageMapType) Get(msgType int32) UnmarshalFunction {
   if unmarshaler, ok := (*mm)[msgType]; ok {
     return unmarshaler
   }
   return nil
 }
 
-type HandlerMapType map[int32]NewHandlerFunctionType
+type HandlerMapType map[int32]HandlerFunction
 
-func (hm *HandlerMapType) Register(msgType int32, factory func(int64, Message) MessageHandler) {
-  (*hm)[msgType] = NewHandlerFunctionType(factory)
+func (hm *HandlerMapType) Register(msgType int32, handler func(Context, Connection)) {
+  (*hm)[msgType] = HandlerFunction(handler)
 }
 
-func (hm *HandlerMapType) Get(msgType int32) NewHandlerFunctionType {
+func (hm *HandlerMapType) Get(msgType int32) HandlerFunction {
   if fn, ok := (*hm)[msgType]; ok {
     return fn
   }
@@ -63,24 +75,24 @@ func (hm *HandlerMapType) Get(msgType int32) NewHandlerFunctionType {
 
 /* Message number 0 is the preserved message
 for long-term connection keeping alive */
-type DefaultHeartBeatMessage struct {
+type HeartBeatMessage struct {
   Timestamp int64
 }
 
-func (dhbm DefaultHeartBeatMessage) Serialize() ([]byte, error) {
+func (hbm HeartBeatMessage) Serialize() ([]byte, error) {
   buf.Reset()
-  err := binary.Write(buf, binary.BigEndian, dhbm.Timestamp)
+  err := binary.Write(buf, binary.BigEndian, hbm.Timestamp)
   if err != nil {
     return nil, err
   }
   return buf.Bytes(), nil
 }
 
-func (dhbm DefaultHeartBeatMessage) MessageNumber() int32 {
+func (hbm HeartBeatMessage) MessageNumber() int32 {
   return DEFAULT_HEART_BEAT
 }
 
-func DeserializeDefaultHeartBeatMessage(data []byte) (message Message, err error) {
+func DeserializeHeartBeatMessage(data []byte) (message Message, err error) {
   var timestamp int64
   if data == nil {
     return nil, ErrorNilData
@@ -90,27 +102,14 @@ func DeserializeDefaultHeartBeatMessage(data []byte) (message Message, err error
   if err != nil {
     return nil, err
   }
-  return DefaultHeartBeatMessage{
+  return HeartBeatMessage{
     Timestamp: timestamp,
   }, nil
 }
 
-type DefaultHeartBeatMessageHandler struct {
-  netid int64
-  message Message
-}
-
-func NewDefaultHeartBeatMessageHandler(net int64, msg Message) MessageHandler {
-  return DefaultHeartBeatMessageHandler{
-    netid: net,
-    message: msg,
-  }
-}
-
-func (handler DefaultHeartBeatMessageHandler) Process(client Connection) bool {
-  heartBeatMessage := handler.message.(DefaultHeartBeatMessage)
-  client.SetHeartBeat(heartBeatMessage.Timestamp)
-  return true
+func ProcessHeartBeatMessage(ctx Context, conn Connection) {
+  heartBeatMsg := ctx.Message().(HeartBeatMessage)
+  conn.SetHeartBeat(heartBeatMsg.Timestamp)
 }
 
 /* Application programmer can define a custom codec themselves */
@@ -192,9 +191,6 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
   binary.Write(buf, binary.LittleEndian, msg.MessageNumber())
   binary.Write(buf, binary.LittleEndian, int32(len(data)))
   buf.Write(data)
-  // if len(data) > 0 {
-  //   binary.Write(buf, binary.BigEndian, data)
-  // }
   packet := buf.Bytes()
   return packet, nil
 }

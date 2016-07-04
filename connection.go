@@ -14,6 +14,11 @@ const (
   MAXLEN = 1 << 23  // 8M
 )
 
+type MessageHandler struct{
+  message Message
+  handler HandlerFunction
+}
+
 type Connection interface{
   SetNetId(netid int64)
   GetNetId() int64
@@ -56,7 +61,7 @@ type Connection interface{
 
   GetRawConn() net.Conn
   GetMessageSendChannel() chan []byte
-  GetHandlerReceiveChannel() chan MessageHandler
+  GetMessageHandlerChannel() chan MessageHandler
   GetCloseChannel() chan struct{}
   GetTimeOutChannel() chan *OnTimeOut
 
@@ -96,7 +101,7 @@ type ServerConnection struct{
   finish *sync.WaitGroup
 
   messageSendChan chan []byte
-  handlerRecvChan chan MessageHandler
+  messageHandlerChan chan MessageHandler
   closeConnChan chan struct{}
   timeOutChan chan *OnTimeOut
 
@@ -118,7 +123,7 @@ func NewServerConnection(netid int64, server *TCPServer, conn net.Conn) Connecti
     messageCodec: TypeLengthValueCodec{},
     finish: &sync.WaitGroup{},
     messageSendChan: make(chan []byte, 1024),
-    handlerRecvChan: make(chan MessageHandler, 1024),
+    messageHandlerChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
     timeOutChan: make(chan *OnTimeOut),
   }
@@ -199,7 +204,7 @@ func (server *ServerConnection)Close() {
 
       close(server.GetCloseChannel())
       close(server.GetMessageSendChannel())
-      close(server.GetHandlerReceiveChannel())
+      close(server.GetMessageHandlerChannel())
       close(server.GetTimeOutChannel())
 
       // wait for all loops to finish
@@ -257,8 +262,8 @@ func (server *ServerConnection)GetMessageSendChannel() chan []byte {
   return server.messageSendChan
 }
 
-func (server *ServerConnection)GetHandlerReceiveChannel() chan MessageHandler {
-  return server.handlerRecvChan
+func (server *ServerConnection)GetMessageHandlerChannel() chan MessageHandler {
+  return server.messageHandlerChan
 }
 
 func (server *ServerConnection)GetCloseChannel() chan struct{} {
@@ -322,7 +327,7 @@ type ClientConnection struct{
   reconnectable bool
 
   messageSendChan chan []byte
-  handlerRecvChan chan MessageHandler
+  messageHandlerChan chan MessageHandler
   closeConnChan chan struct{}
 
   onConnect onConnectFunc
@@ -350,7 +355,7 @@ func NewTLSClientConnection(netid int64, address string, reconnectable bool, con
     finish: &sync.WaitGroup{},
     reconnectable: reconnectable,
     messageSendChan: make(chan []byte, 1024),
-    handlerRecvChan: make(chan MessageHandler, 1024),
+    messageHandlerChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
   }
 }
@@ -374,7 +379,7 @@ func NewClientConnection(netid int64, address string, reconnectable bool) Connec
     finish: &sync.WaitGroup{},
     reconnectable: reconnectable,
     messageSendChan: make(chan []byte, 1024),
-    handlerRecvChan: make(chan MessageHandler, 1024),
+    messageHandlerChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
   }
 }
@@ -474,7 +479,7 @@ func (client *ClientConnection)Close() {
 
       close(client.GetCloseChannel())
       close(client.GetMessageSendChannel())
-      close(client.GetHandlerReceiveChannel())
+      close(client.GetMessageHandlerChannel())
       client.GetTimingWheel().Stop()
       close(client.GetTimeOutChannel())
 
@@ -503,7 +508,7 @@ func (client *ClientConnection)reconnect() {
   client.timingWheel = NewTimingWheel()
   client.conn = c
   client.messageSendChan = make(chan []byte, 1024)
-  client.handlerRecvChan = make(chan MessageHandler, 1024)
+  client.messageHandlerChan = make(chan MessageHandler, 1024)
   client.closeConnChan = make(chan struct{})
   client.Start()
   client.isClosed.CompareAndSet(true, false)
@@ -553,8 +558,8 @@ func (client *ClientConnection)GetMessageSendChannel() chan []byte {
   return client.messageSendChan
 }
 
-func (client *ClientConnection)GetHandlerReceiveChannel() chan MessageHandler {
-  return client.handlerRecvChan
+func (client *ClientConnection)GetMessageHandlerChannel() chan MessageHandler {
+  return client.messageHandlerChan
 }
 
 func (client *ClientConnection)GetCloseChannel() chan struct{} {
@@ -658,8 +663,8 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     // update heart beat timestamp
     conn.SetHeartBeat(time.Now().UnixNano())
-    handlerFactory := HandlerMap.Get(msg.MessageNumber())
-    if handlerFactory == nil {
+    handler := HandlerMap.Get(msg.MessageNumber())
+    if handler == nil {
       if conn.GetOnMessageCallback() != nil {
         glog.Infof("readLoop Message %d call onMessage()\n", msg.MessageNumber())
         conn.GetOnMessageCallback()(msg, conn)
@@ -670,9 +675,8 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
     }
 
     // send handler to handleLoop
-    handler := handlerFactory(conn.GetNetId(), msg)
     if !conn.IsClosed() {
-      conn.GetHandlerReceiveChannel()<- handler
+      conn.GetMessageHandlerChannel()<- MessageHandler{msg, handler}
     }
   }
 }
@@ -726,12 +730,14 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
     case <-conn.GetCloseChannel():
       return
 
-    case handler := <-conn.GetHandlerReceiveChannel():
+    case msgHandler := <-conn.GetMessageHandlerChannel():
+      msg := msgHandler.message
+      handler := msgHandler.handler
       if !isNil(handler) {
         serverConn, ok := conn.(*ServerConnection)
         if ok {
-          serverConn.GetOwner().workerPool.Put(conn.GetNetId(), func() {
-            handler.Process(conn)
+          serverConn.GetOwner().workerPool.Put(conn.GetNetId(), func() { // TODO make workerpool a singleton
+            handler(newContext(msg), conn)
           })
         }
       }
@@ -744,7 +750,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
         }
         serverConn, ok := conn.(*ServerConnection)
         if ok {
-          serverConn.GetOwner().workerPool.Put(conn.GetNetId(), func() {
+          serverConn.GetOwner().workerPool.Put(conn.GetNetId(), func() { // TODO make workerpool a singleton
             timeout.Callback(time.Now(), conn)
           })
         } else {
@@ -770,9 +776,11 @@ func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
     case <-conn.GetCloseChannel():
       return
 
-    case handler := <-conn.GetHandlerReceiveChannel():
+    case msgHandler := <-conn.GetMessageHandlerChannel():
+      msg := msgHandler.message
+      handler := msgHandler.handler
       if !isNil(handler) {
-        handler.Process(conn)
+        handler(newContext(msg), conn)
       }
 
     case timeout := <-conn.GetTimeOutChannel():

@@ -30,28 +30,14 @@ func DeserializeChatMessage(data []byte) (message tao.Message, err error) {
   return msg, nil
 }
 
-type ChatMessageHandler struct {
-  netid int64
-  message tao.Message
-}
-
-func NewChatMessageHandler(net int64, msg tao.Message) tao.MessageHandler {
-  return ChatMessageHandler{
-    netid: net,
-    message: msg,
-  }
-}
-
-func (handler ChatMessageHandler) Process(conn tao.Connection) bool {
+func ProcessChatMessage(ctx tao.Context, conn tao.Connection) {
   if serverConn, ok := conn.(*tao.ServerConnection); ok {
     if serverConn.GetOwner() != nil {
       connections := serverConn.GetOwner().GetAllConnections()
       for v := range connections.IterValues() {
         c := v.(tao.Connection)
-        c.Write(handler.message)
+        c.Write(ctx.Message())
       }
-      return true
     }
   }
-  return false
 }

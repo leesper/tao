@@ -37,7 +37,7 @@ func main() {
   heartBeatDuration := 5 * time.Second
   tcpConnection.RunEvery(heartBeatDuration, func(now time.Time, data interface{}) {
     cli := data.(tao.Connection)
-    msg := tao.DefaultHeartBeatMessage {
+    msg := tao.HeartBeatMessage {
       Timestamp: now.UnixNano(),
     }
     glog.Infof("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
