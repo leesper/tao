@@ -37,14 +37,7 @@ type Context struct{
   netid int64
 }
 
-func NewContext(msg Message) Context {
-  return Context{
-    message: msg,
-    netid: -1,
-  }
-}
-
-func NewContextWithId(msg Message, id int64) Context {
+func NewContext(msg Message, id int64) Context {
   return Context{
     message: msg,
     netid: id,
