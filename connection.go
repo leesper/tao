@@ -702,7 +702,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
       handler := msgHandler.handler
       if !isNil(handler) {
         WorkerPoolInstance().Put(conn.GetNetId(), func() {
-          handler(newContext(msg), conn)
+          handler(NewContext(msg), conn)
         })
       }
 
@@ -739,7 +739,7 @@ func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
       msg := msgHandler.message
       handler := msgHandler.handler
       if !isNil(handler) {
-        handler(newContext(msg), conn)
+        handler(NewContext(msg), conn)
       }
 
     case timeout := <-conn.GetTimeOutChannel():

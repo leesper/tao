@@ -22,11 +22,3 @@ func NewOnTimeOut(extra interface{}, cb func(time.Time, interface{})) *OnTimeOut
     ExtraData: extra,
   }
 }
-
-var DBInitializer = func() (interface{}, error) {
-  return nil, ErrorNotImplemented
-}
-
-func SetDBInitializer(fn func() (interface{}, error)) {
-  DBInitializer = fn
-}

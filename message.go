@@ -34,17 +34,29 @@ type Message interface {
 // User context info
 type Context struct{
   message Message
-  // TODO add db support
+  netid int64
 }
 
-func newContext(m Message) Context {
+func NewContext(msg Message) Context {
   return Context{
-    message: m,
+    message: msg,
+    netid: -1,
+  }
+}
+
+func NewContextWithId(msg Message, id int64) Context {
+  return Context{
+    message: msg,
+    netid: id,
   }
 }
 
 func (ctx Context)Message() Message {
   return ctx.message
+}
+
+func (ctx Context)Id() int64 {
+  return ctx.netid
 }
 
 type MessageMapType map[int32]UnmarshalFunction
