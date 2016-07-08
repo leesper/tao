@@ -2,10 +2,9 @@ package main
 
 import (
   "runtime"
-  "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/echo"
-  "github.com/leesper/pangolin"
+  "github.com/leesper/holmes"
 )
 
 type EchoServer struct {
@@ -19,7 +18,7 @@ func NewEchoServer(addr string) *EchoServer {
 }
 
 func main() {
-  defer pangolin.Start(pangolin.ProfilePath("./prof")).Stop()
+  defer holmes.Start().Stop()
 
   runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -30,20 +29,20 @@ func main() {
   defer echoServer.Close()
 
   echoServer.SetOnConnectCallback(func(client tao.Connection) bool {
-    glog.Infoln("On connect")
+    holmes.Info("%v", "On connect")
     return true
   })
 
   echoServer.SetOnErrorCallback(func() {
-    glog.Infoln("On error")
+    holmes.Info("%v", "On error")
   })
 
   echoServer.SetOnCloseCallback(func(client tao.Connection) {
-    glog.Infoln("Closing client")
+    holmes.Info("%v", "Closing client")
   })
 
   echoServer.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
-    glog.Infoln("Receving message")
+    holmes.Info("%v", "Receving message")
   })
 
   echoServer.Start()

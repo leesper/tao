@@ -2,9 +2,10 @@ package tao
 
 import (
   "bytes"
-  "io"
   "encoding/binary"
-  "github.com/golang/glog"
+  "io"
+
+  "github.com/leesper/holmes"
 )
 
 func init() {
@@ -167,7 +168,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
       return nil, err
     }
     if msgLen > MAXLEN {
-      glog.Errorf("len %d, type %d\n", msgLen, msgType)
+      holmes.Error("len %d, type %d", msgLen, msgType)
       return nil, ErrorIllegalData
     }
     // read real application message

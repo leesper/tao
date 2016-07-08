@@ -1,14 +1,15 @@
   package tao
 
 import (
+  "crypto/rand"
+  "crypto/tls"
+  "flag"
   "net"
   "os"
-  "time"
-  "flag"
   "sync"
-  "crypto/tls"
-  "crypto/rand"
-  "github.com/golang/glog"
+  "time"
+
+  "github.com/leesper/holmes"
 )
 
 func init() {
@@ -94,7 +95,7 @@ func (server *TCPServer) Start() {
 
   listener, err := net.Listen("tcp", server.address)
   if err != nil {
-    glog.Fatalln(err)
+    holmes.Fatal("%v", err)
   }
   defer listener.Close()
 
@@ -111,7 +112,7 @@ func (server *TCPServer) Start() {
         if tempDelay >= 1 * time.Second {
           tempDelay = 1 * time.Second
         }
-        glog.Errorf("Accept error %v, retrying in %v", err, tempDelay)
+        holmes.Error("Accept error %v, retrying in %d", err, tempDelay)
         time.Sleep(tempDelay)
         continue
       }
@@ -121,7 +122,7 @@ func (server *TCPServer) Start() {
 
     connSize := server.connections.Size()
     if server.connections.Size() >= MAX_CONNECTIONS {
-      glog.Errorf("Num of conns %d exceeding MAX %d, refuse\n", connSize, MAX_CONNECTIONS)
+      holmes.Error("Num of conns %d exceeding MAX %d, refuse", connSize, MAX_CONNECTIONS)
       conn.Close()
       continue
     }
@@ -145,15 +146,15 @@ func (server *TCPServer) Start() {
       tcpConn.Start()
     }()
 
-    glog.Infof("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
+    holmes.Info("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
     for k := range server.connections.IterKeys() {
       if c, ok := server.connections.Get(k); ok {
         conn := c.(Connection)
         if conn.IsClosed() {
           server.connections.Remove(k)
-          glog.Infof("Remove closed client %s %d\n", conn.GetName(), conn.GetNetId())
+          holmes.Info("Remove closed client %s %d\n", conn.GetName(), conn.GetNetId())
         } else {
-          glog.Infof("Client %s %t\n", conn.GetName(), conn.IsClosed())
+          holmes.Info("Client %s %t\n", conn.GetName(), conn.IsClosed())
         }
       }
     }
@@ -234,7 +235,7 @@ func NewTLSTCPServer(addr, cert, key string) Server {
 
   config, err := LoadTLSConfig(server.certFile, server.keyFile, false)
   if err != nil {
-    glog.Fatalln(err)
+    holmes.Fatal("%v", err)
   }
 
   setTLSWrapper(func(conn net.Conn) net.Conn{
@@ -329,7 +330,7 @@ func (server *TCPServer) timeOutLoop() {
           tcpConn.GetTimeOutChannel()<- timeout
         }
       } else {
-        glog.Warningf("Invalid client %d\n", netid)
+        holmes.Warn("Invalid client %d", netid)
       }
     }
   }

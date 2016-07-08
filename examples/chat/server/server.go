@@ -1,12 +1,12 @@
 package main
 
 import (
-  "runtime"
   "fmt"
+  "runtime"
   "time"
-  "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
+  "github.com/leesper/holmes"
 )
 
 type ChatServer struct {
@@ -21,6 +21,7 @@ func NewChatServer(addr string) *ChatServer {
 
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
+  defer holmes.Start().Stop()
 
   tao.MessageMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.DeserializeHeartBeatMessage)
   tao.HandlerMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.ProcessHeartBeatMessage)
@@ -32,26 +33,26 @@ func main() {
   defer chatServer.Close()
 
   chatServer.SetOnConnectCallback(func(conn tao.Connection) bool {
-    glog.Infoln("On connect")
+    holmes.Info("%s", "On connect")
     return true
   })
 
   chatServer.SetOnErrorCallback(func() {
-    glog.Infoln("On error")
+    holmes.Info("%s", "On error")
   })
 
   chatServer.SetOnCloseCallback(func(conn tao.Connection) {
-    glog.Infoln("Closing chat client")
+    holmes.Info("%s", "Closing chat client")
   })
 
   heartBeatDuration := 5 * time.Second
   chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, data interface{}) {
     cli := data.(tao.Connection)
-    glog.Infof("Checking client %d at %s", cli.GetNetId(), time.Now())
+    holmes.Info("Checking client %d at %s", cli.GetNetId(), time.Now())
     last := cli.GetHeartBeat()
     period := heartBeatDuration.Nanoseconds()
     if last < now.UnixNano() - 2 * period {
-      glog.Warningf("Client %s netid %d timeout, close it\n", cli.GetName(), cli.GetNetId())
+      holmes.Warn("Client %s netid %d timeout, close it\n", cli.GetName(), cli.GetNetId())
       cli.Close()
     }
   })

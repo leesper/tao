@@ -6,9 +6,9 @@ import (
   "os"
   "time"
   "net"
-  "github.com/golang/glog"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
+  "github.com/leesper/holmes"
 )
 
 func main() {
@@ -16,23 +16,23 @@ func main() {
 
   c, err := net.Dial("tcp", "127.0.0.1:18341")
   if err != nil {
-    glog.Fatalln(err)
+    holmes.Fatal("%v", err)
   }
 
   tcpConnection := tao.NewClientConnection(0, false, c)
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    glog.Infoln("On connect")
+    holmes.Info("%s", "On connect")
     return true
   })
 
   tcpConnection.SetOnErrorCallback(func() {
-    glog.Infoln("On error")
+    holmes.Info("%s", "On error")
   })
 
   tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    glog.Infoln("On close")
+    holmes.Info("On close")
     os.Exit(0)
   })
 
@@ -46,7 +46,7 @@ func main() {
     msg := tao.HeartBeatMessage {
       Timestamp: now.UnixNano(),
     }
-    glog.Infof("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
+    holmes.Info("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
     cli.Write(msg)
   })
 

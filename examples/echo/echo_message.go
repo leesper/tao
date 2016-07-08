@@ -1,8 +1,8 @@
 package echo
 
 import (
-  "github.com/golang/glog"
   "github.com/leesper/tao"
+  "github.com/leesper/holmes"
 )
 
 type EchoMessage struct {
@@ -30,6 +30,6 @@ func DeserializeEchoMessage(data []byte) (message tao.Message, err error) {
 
 func ProcessEchoMessage(ctx tao.Context, conn tao.Connection) {
   echoMessage := ctx.Message().(EchoMessage)
-  glog.Infof("Receving message %s\n", echoMessage.Message)
+  holmes.Info("Receving message %s\n", echoMessage.Message)
   conn.Write(ctx.Message())
 }

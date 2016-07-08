@@ -73,7 +73,6 @@ import (
   "flag"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
-  "github.com/golang/glog"
 )
 
 func init() {

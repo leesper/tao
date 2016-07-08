@@ -1,10 +1,11 @@
 package tao
 
 import (
-  "time"
-  "sync"
   "container/heap"
-  "github.com/golang/glog"
+  "sync"
+  "time"
+
+  "github.com/leesper/holmes"
 )
 
 var timerIds *AtomicInt64
@@ -150,7 +151,7 @@ func (tw *TimingWheel) getExpired() []*timerType {
       break
     }
     if delta <= -1.0 {
-      glog.Warningln("DELTA ", delta)
+      holmes.Warn("Delta %f", delta)
     }
   }
   return expired

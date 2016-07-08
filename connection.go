@@ -4,7 +4,8 @@ import (
   "net"
   "sync"
   "time"
-  "github.com/golang/glog"
+
+  "github.com/leesper/holmes"
 )
 
 const (
@@ -191,7 +192,7 @@ func (conn *ServerConnection)Close() {
     if conn.isClosed.CompareAndSet(false, true) {
       conn.GetOwner().connections.Remove(conn.GetNetId())
 
-      glog.Infoln("HOW MANY CONNECTIONS DO I HAVE:", conn.GetOwner().connections.Size())
+      holmes.Info("HOW MANY CONNECTIONS DO I HAVE: %d", conn.GetOwner().connections.Size())
 
       if (conn.GetOnCloseCallback() != nil) {
         conn.GetOnCloseCallback()(conn)
@@ -465,7 +466,7 @@ func (client *ClientConnection)Close() {
 func (client *ClientConnection)reconnect() {
   c, err := net.Dial("tcp", client.address)
   if err != nil {
-    glog.Fatalln("ClientConnection", err)
+    holmes.Fatal("Dial error %v", err)
   }
   client.name = c.RemoteAddr().String()
   client.heartBeat = time.Now().UnixNano()
@@ -586,7 +587,7 @@ func asyncWrite(conn Connection, message Message) error {
 
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
-    glog.Errorln("asyncWrite", err)
+    holmes.Error("asyncWrite error %v", err)
     return err
   }
 
@@ -603,7 +604,7 @@ then find corresponding handler, put it into channel */
 func readLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      glog.Errorf("readLoop panics: %v\n", p)
+      holmes.Error("panics: %v", p)
     }
     finish.Done()
     conn.Close()
@@ -619,7 +620,7 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
     msg, err := conn.GetMessageCodec().Decode(conn)
     if err != nil {
-      glog.Errorf("readLoop Error decoding message - %s\n", err)
+      holmes.Error("Error decoding message %v", err)
       if _, ok := err.(ErrorUndefined); ok {
         // update heart beat timestamp
         conn.SetHeartBeat(time.Now().UnixNano())
@@ -633,10 +634,10 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
     handler := HandlerMap.Get(msg.MessageNumber())
     if handler == nil {
       if conn.GetOnMessageCallback() != nil {
-        glog.Infof("readLoop Message %d call onMessage()\n", msg.MessageNumber())
+        holmes.Info("Message %d call onMessage()", msg.MessageNumber())
         conn.GetOnMessageCallback()(msg, conn)
       } else {
-        glog.Infof("readLoop No handler or onMessage() found for message %d", msg.MessageNumber())
+        holmes.Warn("No handler or onMessage() found for message %d", msg.MessageNumber())
       }
       continue
     }
@@ -653,12 +654,12 @@ then blocking write into connection */
 func writeLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      glog.Errorf("writeLoop panics: %v", p)
+      holmes.Error("panics: %v", p)
     }
     for packet := range conn.GetMessageSendChannel() {
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
-          glog.Errorf("writeLoop Error writing data - %s\n", err)
+          holmes.Error("Error writing data %v", err)
         }
       }
     }
@@ -674,7 +675,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
     case packet := <-conn.GetMessageSendChannel():
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
-          glog.Errorf("writeLoop Error writing data - %s\n", err)
+          holmes.Error("Error writing data %v", err)
           return
         }
       }
@@ -686,7 +687,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
 func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      glog.Errorf("handleServerLoop panics: %v", p)
+      holmes.Error("panics: %v", p)
     }
     finish.Done()
     conn.Close()
@@ -710,7 +711,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
       if timeout != nil {
         extraData := timeout.ExtraData.(int64)
         if extraData != conn.GetNetId() {
-          glog.Warningf("handleServerLoop time out of %d running on client %d", extraData, conn.GetNetId())
+          holmes.Error("time out of %d running on client %d", extraData, conn.GetNetId())
         }
         WorkerPoolInstance().Put(conn.GetNetId(), func() {
           timeout.Callback(time.Now(), conn)
@@ -724,7 +725,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
 func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
   defer func() {
     if p := recover(); p != nil {
-      glog.Errorf("handleClientLoop panics: %v", p)
+      holmes.Error("panics: %v", p)
     }
     finish.Done()
     conn.Close()
@@ -746,7 +747,7 @@ func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
       if timeout != nil {
         extraData := timeout.ExtraData.(int64)
         if extraData != conn.GetNetId() {
-          glog.Warningf("handleClientLoop time out of %d running on client %d", extraData, conn.GetNetId())
+          holmes.Error("time out of %d running on client %d", extraData, conn.GetNetId())
         }
         timeout.Callback(time.Now(), conn)
       }

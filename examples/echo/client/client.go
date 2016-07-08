@@ -6,29 +6,29 @@ import (
   "net"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/echo"
-  "github.com/golang/glog"
+  "github.com/leesper/holmes"
 )
 
 func main() {
   tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
   c, err := net.Dial("tcp", "127.0.0.1:18342")
   if err != nil {
-    glog.Fatalln(err)
+    holmes.Fatal("%v", err)
   }
 
   tcpConnection := tao.NewClientConnection(0, false, c)
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    glog.Infoln("On connect")
+    holmes.Info("%v", "On connect")
     return true
   })
 
   tcpConnection.SetOnErrorCallback(func() {
-    glog.Infoln("On error")
+    holmes.Info("%v", "On error")
   })
 
   tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    glog.Infoln("On close")
+    holmes.Info("%v", "On close")
   })
 
   tcpConnection.SetOnMessageCallback(func(msg tao.Message, c tao.Connection) {
@@ -46,7 +46,7 @@ func main() {
     time.Sleep(600 * time.Millisecond)
     err := tcpConnection.Write(echoMessage)
     if err != nil {
-      glog.Errorln(err)
+      holmes.Error("%v", err)
     }
   }
   time.Sleep(time.Second)
