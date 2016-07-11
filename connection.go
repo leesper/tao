@@ -3,6 +3,7 @@ package tao
 import (
   "net"
   "sync"
+  "sync/atomic"
   "time"
 
   "github.com/leesper/holmes"
@@ -87,7 +88,7 @@ type ServerConnection struct{
   netid int64
   name string
   heartBeat int64
-  extraData interface{}
+  extraData atomic.Value
   owner *TCPServer
   isClosed *AtomicBoolean
   once sync.Once
@@ -155,11 +156,11 @@ func (conn *ServerConnection)GetHeartBeat() int64 {
 }
 
 func (conn *ServerConnection)SetExtraData(extra interface{}) {
-  conn.extraData = extra
+  conn.extraData.Store(extra)
 }
 
-func (server *ServerConnection)GetExtraData()interface{} {
-  return server.extraData
+func (conn *ServerConnection)GetExtraData()interface{} {
+  return conn.extraData.Load()
 }
 
 func (conn *ServerConnection)SetMessageCodec(codec Codec) {
@@ -312,7 +313,7 @@ type ClientConnection struct{
   name string
   address string
   heartBeat int64
-  extraData interface{}
+  extraData atomic.Value
   isClosed *AtomicBoolean
   once *sync.Once
   pendingTimers []int64
@@ -377,11 +378,11 @@ func (client *ClientConnection)GetHeartBeat() int64 {
 }
 
 func (client *ClientConnection)SetExtraData(extra interface{}) {
-  client.extraData = extra
+  client.extraData.Store(extra)
 }
 
 func (client *ClientConnection)GetExtraData()interface{} {
-  return client.extraData
+  return client.extraData.Load()
 }
 
 func (client *ClientConnection)SetMessageCodec(codec Codec) {
@@ -470,7 +471,7 @@ func (client *ClientConnection)reconnect() {
   }
   client.name = c.RemoteAddr().String()
   client.heartBeat = time.Now().UnixNano()
-  client.extraData = nil
+  client.extraData.Store(nil)
   client.once = &sync.Once{}
   client.pendingTimers = []int64{}
   client.timingWheel = NewTimingWheel()
