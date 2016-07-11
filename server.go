@@ -235,7 +235,7 @@ func NewTLSTCPServer(addr, cert, key string) Server {
 
   config, err := LoadTLSConfig(server.certFile, server.keyFile, false)
   if err != nil {
-    holmes.Fatal("%v", err)
+    holmes.Fatal("loading %s %s: %v", server.certFile, server.keyFile, err)
   }
 
   setTLSWrapper(func(conn net.Conn) net.Conn{
