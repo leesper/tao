@@ -456,7 +456,7 @@ func (client *ClientConnection)reconnect() {
   }
   client.name = c.RemoteAddr().String()
   client.heartBeat = time.Now().UnixNano()
-  client.extraData.Store(nil)
+  client.extraData.Store(struct{}{})
   client.once = &sync.Once{}
   client.pendingTimers = []int64{}
   client.timingWheel = NewTimingWheel()
