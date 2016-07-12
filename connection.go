@@ -69,21 +69,6 @@ type Connection interface{
   GetRemoteAddress() net.Addr
 }
 
-type ServerSide interface{
-  GetOwner() *TCPServer
-}
-
-type ServerSideConnection interface{
-  Connection
-  ServerSide
-}
-
-type ClientSideConnection interface{
-  Connection
-  // Reconnectable
-}
-
-// implements ServerSideConnection
 type ServerConnection struct{
   netid int64
   name string
