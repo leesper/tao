@@ -5,6 +5,10 @@ import (
   "github.com/leesper/tao"
 )
 
+const (
+  CHAT_MESSAGE int32 = 1
+)
+
 var ErrorNilData error = errors.New("Nil data")
 
 type ChatMessage struct {
@@ -12,7 +16,7 @@ type ChatMessage struct {
 }
 
 func (cm ChatMessage) MessageNumber() int32 {
-  return 1
+  return CHAT_MESSAGE
 }
 
 func (cm ChatMessage) Serialize() ([]byte, error) {

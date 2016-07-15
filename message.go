@@ -21,7 +21,7 @@ var (
 )
 
 const (
-  DEFAULT_HEART_BEAT = 0
+  HEART_BEAT = 0
 )
 
 type HandlerFunction func(Context, Connection)
@@ -95,7 +95,7 @@ func (hbm HeartBeatMessage) Serialize() ([]byte, error) {
 }
 
 func (hbm HeartBeatMessage) MessageNumber() int32 {
-  return DEFAULT_HEART_BEAT
+  return HEART_BEAT
 }
 
 func DeserializeHeartBeatMessage(data []byte) (message Message, err error) {
@@ -185,7 +185,6 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     }
     return unmarshaler(msgBytes)
   }
-
 }
 
 func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {

@@ -3,7 +3,7 @@ each client's message handler is permanently hashed into one specified
 worker to execute, so it is in-order for each client's perspective. */
 package tao
 
-// singleton
+// <<singleton>>
 type WorkerPool struct {
   workers []*worker
   closeChan chan struct{}

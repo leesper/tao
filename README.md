@@ -68,19 +68,15 @@ Application-level heart-beating protocol;
 package main
 
 import (
-  "runtime"
   "fmt"
-  "flag"
+  "runtime"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
+  "github.com/leesper/holmes"
 )
 
-func init() {
-  flag.Parse()
-}
-
 type ChatServer struct {
-  *tao.TCPServer
+  tao.Server
 }
 
 func NewChatServer(addr string) *ChatServer {
@@ -91,36 +87,24 @@ func NewChatServer(addr string) *ChatServer {
 
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
-  tao.MessageMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.DeserializeHeartBeatMessage)
-  tao.HandlerMap.Register(tao.HeartBeatMessage{}.MessageNumber(), tao.ProcessHeartBeatMessage)
-  tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage)
-  tao.HandlerMap.Register(chat.ChatMessage{}.MessageNumber(), chat.ProcessChatMessage)
+  defer holmes.Start().Stop()
+
+  tao.MessageMap.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage)
+  tao.HandlerMap.Register(chat.CHAT_MESSAGE, chat.ProcessChatMessage)
 
   chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
-  defer chatServer.Close()
 
-  chatServer.SetOnConnectCallback(func(client *tao.TCPConnection) bool {
-    glog.Infoln("On connect")
+  chatServer.SetOnConnectCallback(func(conn tao.Connection) bool {
+    holmes.Info("%s", "On connect")
     return true
   })
 
   chatServer.SetOnErrorCallback(func() {
-    glog.Infoln("On error")
+    holmes.Info("%s", "On error")
   })
 
-  chatServer.SetOnCloseCallback(func(client *tao.TCPConnection) {
-    glog.Infoln("Closing chat client")
-  })
-
-  heartBeatDuration := 5 * time.Second
-  chatServer.SetOnScheduleCallback(heartBeatDuration, func(now time.Time, cli *tao.TCPConnection) {
-    glog.Infof("Checking client %d at %s", cli.NetId(), time.Now())
-    last := cli.HeartBeat
-    period := heartBeatDuration.Nanoseconds()
-    if last < now.UnixNano() - 2 * period {
-      glog.Warningf("Client %s netid %d timeout, close it\n", cli, cli.NetId())
-      cli.Close()
-    }
+  chatServer.SetOnCloseCallback(func(conn tao.Connection) {
+    holmes.Info("%s", "Closing chat client")
   })
 
   chatServer.Start()

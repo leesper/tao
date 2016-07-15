@@ -4,7 +4,6 @@ import (
   "fmt"
   "bufio"
   "os"
-  "time"
   "net"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
@@ -38,16 +37,6 @@ func main() {
 
   tcpConnection.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
     fmt.Print(msg.(chat.ChatMessage).Info)
-  })
-
-  heartBeatDuration := 5 * time.Second
-  tcpConnection.RunEvery(heartBeatDuration, func(now time.Time, data interface{}) {
-    cli := data.(tao.Connection)
-    msg := tao.HeartBeatMessage {
-      Timestamp: now.UnixNano(),
-    }
-    holmes.Info("Sending heart beat at %s, timestamp %d\n", now, msg.Timestamp)
-    cli.Write(msg)
   })
 
   tcpConnection.Start()

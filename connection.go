@@ -642,6 +642,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
     if p := recover(); p != nil {
       holmes.Error("panics: %v", p)
     }
+    // write all pending messages before close
     for packet := range conn.GetMessageSendChannel() {
       if packet != nil {
         if _, err := conn.GetRawConn().Write(packet); err != nil {
