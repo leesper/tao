@@ -3,6 +3,10 @@ each client's message handler is permanently hashed into one specified
 worker to execute, so it is in-order for each client's perspective. */
 package tao
 
+import (
+  "time"
+)
+
 // <<singleton>>
 type WorkerPool struct {
   workers []*worker
@@ -72,9 +76,12 @@ func (w *worker) start() {
     case <-w.closeChan:
       break
     case cb := <-w.callbackChan:
+      before := time.Now()
       func() {
         cb()
       }()
+      after := time.Now()
+      addTotalTime(after.Sub(before).Seconds())
     }
   }
   close(w.callbackChan)

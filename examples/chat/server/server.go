@@ -21,6 +21,7 @@ func NewChatServer(addr string) *ChatServer {
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
   defer holmes.Start().Stop()
+  tao.MonitorOn(12345)
 
   tao.MessageMap.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage)
   tao.HandlerMap.Register(chat.CHAT_MESSAGE, chat.ProcessChatMessage)

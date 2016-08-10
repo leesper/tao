@@ -139,6 +139,7 @@ func (server *TCPServer) Start() {
       tcpConn.RunEvery(duration, onSchedule)
     }
     server.connections.Put(netid, tcpConn)
+    addTotalConn(1)
 
     // put tcpConn.Start() run in another WaitGroup-synchronized go-routine
     server.finish.Add(1)

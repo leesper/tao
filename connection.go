@@ -177,6 +177,7 @@ func (conn *ServerConnection)Close() {
   conn.once.Do(func(){
     if conn.isClosed.CompareAndSet(false, true) {
       conn.GetOwner().connections.Remove(conn.GetNetId())
+      addTotalConn(-1)
 
       holmes.Info("HOW MANY CONNECTIONS DO I HAVE: %d", conn.GetOwner().connections.Size())
 
@@ -692,6 +693,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
         WorkerPoolInstance().Put(conn.GetNetId(), func() {
           handler(NewContext(msg, conn.GetNetId()), conn)
         })
+        addTotalProcess()
       }
 
     case timeout := <-conn.GetTimeOutChannel():
