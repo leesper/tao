@@ -10,14 +10,14 @@ import (
 )
 
 var (
-  procExported *expvar.Int
+  handleExported *expvar.Int
   connExported *expvar.Int
   timeExported *expvar.Float
   qpsExported *expvar.Float
 )
 
 func init() {
-  procExported = expvar.NewInt("TotalProcess")
+  handleExported = expvar.NewInt("TotalHandle")
   connExported = expvar.NewInt("TotalConn")
   timeExported = expvar.NewFloat("TotalTime")
   qpsExported = expvar.NewFloat("QPS")
@@ -37,8 +37,8 @@ func addTotalConn(delta int64) {
   calculateQps()
 }
 
-func addTotalProcess() {
-  procExported.Add(1)
+func addTotalHandle() {
+  handleExported.Add(1)
   calculateQps()
 }
 
@@ -60,14 +60,15 @@ func calculateQps() {
     return
   }
 
-  totalProcess, err := strconv.ParseInt(procExported.String(), 10, 64)
+  totalHandle, err := strconv.ParseInt(handleExported.String(), 10, 64)
   if err != nil {
     holmes.Errorln(err)
     return
   }
 
   if float64(totalConn) * totalTime != 0 {
-    qps := float64(totalProcess) / (float64(totalConn) * totalTime)
+    // take the average time per worker go-routine
+    qps := float64(totalHandle) / (float64(totalConn) * (totalTime / float64(WORKERS)))
     qpsExported.Set(qps)
   }
 }

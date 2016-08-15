@@ -80,8 +80,7 @@ func (w *worker) start() {
       func() {
         cb()
       }()
-      after := time.Now()
-      addTotalTime(after.Sub(before).Seconds())
+      addTotalTime(time.Since(before).Seconds())
     }
   }
   close(w.callbackChan)
