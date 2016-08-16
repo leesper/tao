@@ -16,7 +16,7 @@ func main() {
     holmes.Fatal("%v", err)
   }
 
-  tcpConnection := tao.NewClientConnection(0, false, c)
+  tcpConnection := tao.NewClientConnection(0, false, c, nil)
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
     holmes.Info("%v", "On connect")

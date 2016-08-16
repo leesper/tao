@@ -22,7 +22,7 @@ func main() {
     holmes.Fatal("%v", err)
   }
 
-  tcpConnection := tao.NewClientConnection(0, false, c)
+  tcpConnection := tao.NewClientConnection(0, false, c, nil)
   defer tcpConnection.Close()
 
   tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {

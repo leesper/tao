@@ -1,6 +1,7 @@
 package tao
 
 import (
+  "crypto/tls"
   "net"
   "sync"
   "sync/atomic"
@@ -308,6 +309,7 @@ type ClientConnection struct{
   messageCodec Codec
   finish *sync.WaitGroup
   reconnectable bool
+  tconfig *tls.Config
 
   messageSendChan chan []byte
   messageHandlerChan chan MessageHandler
@@ -319,7 +321,7 @@ type ClientConnection struct{
   onError onErrorFunc
 }
 
-func NewClientConnection(netid int64, reconnectable bool, c net.Conn) Connection {
+func NewClientConnection(netid int64, reconnectable bool, c net.Conn, tconf *tls.Config) Connection {
   return &ClientConnection {
     netid: netid,
     name: c.RemoteAddr().String(),
@@ -333,6 +335,7 @@ func NewClientConnection(netid int64, reconnectable bool, c net.Conn) Connection
     messageCodec: TypeLengthValueCodec{},
     finish: &sync.WaitGroup{},
     reconnectable: reconnectable,
+    tconfig: tconf,
     messageSendChan: make(chan []byte, 1024),
     messageHandlerChan: make(chan MessageHandler, 1024),
     closeConnChan: make(chan struct{}),
@@ -451,10 +454,20 @@ func (client *ClientConnection)Close() {
 }
 
 func (client *ClientConnection)reconnect() {
-  c, err := net.Dial("tcp", client.address)
-  if err != nil {
-    holmes.Fatal("Dial error %v", err)
+  var c net.Conn
+  var err error
+  if client.tconfig == nil {
+    c, err = net.Dial("tcp", client.address)
+    if err != nil {
+      holmes.Fatal("net Dial error %v", err)
+    }
+  } else {
+    c, err = tls.Dial("tcp", client.address, client.tconfig)
+    if err != nil {
+      holmes.Fatal("tls Dial error %v", err)
+    }
   }
+
   client.name = c.RemoteAddr().String()
   client.heartBeat = time.Now().UnixNano()
   client.extraData.Store(struct{}{})
