@@ -3,6 +3,29 @@ Tao --- 轻量级TCP异步框架，Go语言实现
 
 ## Light-weight TCP Asynchronous gOlang framework
 
+Announcing Tao 1.3 - Release NOtes
+--------
+1. bugfix：修复断线重连状态不一致问题；<br/>
+bugfix: fixed inconsistent status caused by reconnecting;
+2. bugfix：修复ServerConnection和TimingWheel在连接关闭时并发访问导致崩溃问题；<br/>
+bugfix: fixed a corruption caused by concurrent accessing between ServerConnection and TimingWheel during connection closing;
+3. 无锁且线程安全的TimingWheel，优化CPU占用率；<br/>
+Lock-free and thread-safe TimingWheel, optimized occupancy rate;<br/>
+4. bugfix：修复TLS配置文件读取函数；<br/>
+bugfix: Fixed errors when loading TLS config;
+5. 添加消息相关的Context结构；简化消息注册机制，直接注册处理函数到HandlerMap；<br/>
+A message-related Context struct added; Register handler functions in HandlerMap directly to simplify message registration mechanism;
+6. 合并NewClientConnection()和NewTLSClientConnection()，提供一致的API；<br/>
+Combine NewTLSConnection() into NewClientConnection(), providing a consistent API;
+7. 工作者线程池改造成单例模式；<br/>
+Make WorkerPool a singleton pattern;
+8. 使用Holmes日志库代替glog；<br/>
+Using Holmes logging package instead of glog;
+9. 添加metrics.go：基于expvar标准包导出服务器关键信息；<br/>
+Add metrics.go: exporting critical server information based on expvar standard pacakge;
+10. 编写中文版框架设计原理文档，英文版正在翻译中；<br/>
+A document about framework designing principles in Chinese, English version under developed;
+
 Announcing Tao 1.2 - Release Notes
 --------
 1. 更优雅的消息注册接口；<br/>
@@ -61,6 +84,10 @@ Millisecond-precision timer function;
 Transport layer security support;
 6. 应用层心跳协议；<br/>
 Application-level heart-beating protocol;
+
+### Documentation
+1. [Tao - Go语言实现的TCP网络编程框架](http://www.jianshu.com/p/c322edca985f)
+2. English(TBD)
 
 ### Chat Server Example
 
