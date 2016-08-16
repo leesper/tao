@@ -568,6 +568,13 @@ func runEvery(conn Connection, interval time.Duration, callback func(time.Time, 
 }
 
 func asyncWrite(conn Connection, message Message) error {
+  defer func() error {
+    if p := recover(); p != nil {
+      return ErrorConnClosed
+    }
+    return nil
+  }()
+
   if conn.IsClosed() {
     return ErrorConnClosed
   }

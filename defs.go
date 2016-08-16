@@ -18,7 +18,7 @@ var (
 )
 
 const (
-  WORKERS = 10
+  WORKERS = 20
   MAX_CONNECTIONS = 1000
 )
 
