@@ -1,7 +1,6 @@
 package tao
 
 import (
-  "hash"
   "hash/fnv"
   "os"
   "reflect"
@@ -87,17 +86,11 @@ type Hashable interface {
 	HashCode() int32
 }
 
-var h hash.Hash32
-
 const intSize = unsafe.Sizeof(1)
-
-func init() {
-  h = fnv.New32a()
-}
 
 func hashCode(k interface{}) uint32 {
   var code uint32
-  h.Reset()
+  h := fnv.New32a()
 	switch v := k.(type) {
 	case bool:
 		h.Write((*((*[1]byte)(unsafe.Pointer(&v))))[:])
