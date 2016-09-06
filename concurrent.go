@@ -212,7 +212,7 @@ func NewAtomicBoolean(initialValue bool) *AtomicBoolean {
 }
 
 func (a *AtomicBoolean) Get() bool {
-  return int32(*a) != 0
+  return atomic.LoadInt32((*int32)(a)) != 0
 }
 
 func (a *AtomicBoolean) Set(newValue bool) {

@@ -134,11 +134,11 @@ func (conn *ServerConnection)GetName() string {
 }
 
 func (conn *ServerConnection)SetHeartBeat(beat int64) {
-  conn.heartBeat = beat
+  atomic.StoreInt64(&conn.heartBeat, beat)
 }
 
 func (conn *ServerConnection)GetHeartBeat() int64 {
-  return conn.heartBeat
+  return atomic.LoadInt64(&conn.heartBeat)
 }
 
 func (conn *ServerConnection)SetExtraData(extra interface{}) {
@@ -359,11 +359,11 @@ func (client *ClientConnection)GetName() string {
 }
 
 func (client *ClientConnection)SetHeartBeat(beat int64) {
-  client.heartBeat = beat
+  atomic.StoreInt64(&client.heartBeat, beat)
 }
 
 func (client *ClientConnection)GetHeartBeat() int64 {
-  return client.heartBeat
+  return atomic.LoadInt64(&client.heartBeat)
 }
 
 func (client *ClientConnection)SetExtraData(extra interface{}) {
