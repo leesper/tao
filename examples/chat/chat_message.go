@@ -37,9 +37,8 @@ func DeserializeChatMessage(data []byte) (message tao.Message, err error) {
 func ProcessChatMessage(ctx tao.Context, conn tao.Connection) {
   if serverConn, ok := conn.(*tao.ServerConnection); ok {
     if serverConn.GetOwner() != nil {
-      connections := serverConn.GetOwner().GetAllConnections()
-      for v := range connections.IterValues() {
-        c := v.(tao.Connection)
+      connections := serverConn.GetOwner().GetConnections()
+      for _, c := range connections {
         c.Write(ctx.Message())
       }
     }

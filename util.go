@@ -33,32 +33,6 @@ func (cm *ConnectionMap)Get(k int64) (Connection, bool) {
   return conn, ok
 }
 
-func (cm *ConnectionMap)IterKeys() <-chan int64 {
-  kch := make(chan int64)
-  go func() {
-    cm.RLock()
-    for k, _ := range cm.m {
-      kch<- k
-    }
-    cm.RUnlock()
-    close(kch)
-  }()
-  return kch
-}
-
-func (cm *ConnectionMap)IterValues() <-chan Connection {
-  vch := make(chan Connection)
-  go func() {
-    cm.RLock()
-    for _, v := range cm.m {
-      vch<- v
-    }
-    cm.RUnlock()
-    close(vch)
-  }()
-  return vch
-}
-
 func (cm *ConnectionMap)Put(k int64, v Connection) {
   cm.Lock()
   cm.m[k] = v

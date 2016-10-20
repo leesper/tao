@@ -27,7 +27,8 @@ var (
 
 type Server interface{
   IsRunning() bool
-  GetAllConnections() *ConnectionMap
+  GetConnections() []Connection
+  GetConnectionMap() *ConnectionMap
   GetTimingWheel() *TimingWheel
   GetServerAddress() string
   Start()
@@ -77,7 +78,17 @@ func (server *TCPServer)IsRunning() bool {
   return server.isRunning.Get()
 }
 
-func (server *TCPServer)GetAllConnections() *ConnectionMap {
+func (server *TCPServer)GetConnections() []Connection {
+  conns := []Connection{}
+  server.connections.RLock()
+  for _, conn := range server.connections.m {
+    conns = append(conns, conn)
+  }
+  server.connections.RUnlock()
+  return conns
+}
+
+func (server *TCPServer)GetConnectionMap() *ConnectionMap {
   return server.connections
 }
 
@@ -148,30 +159,33 @@ func (server *TCPServer) Start() {
     }()
 
     holmes.Info("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
-    for k := range server.connections.IterKeys() {
-      if c, ok := server.connections.Get(k); ok {
-        conn := c.(Connection)
-        if conn.IsClosed() {
-          server.connections.Remove(k)
-          holmes.Info("Remove closed client %s %d\n", conn.GetName(), conn.GetNetId())
-        } else {
-          holmes.Info("Client %s %t\n", conn.GetName(), conn.IsClosed())
-        }
-      }
+    server.connections.RLock()
+    for _, conn := range server.connections.m {
+      holmes.Info("Client %s %t\n", conn.GetName(), conn.IsRunning())
     }
+    server.connections.RUnlock()
   }
 }
 
 // wait until all connections closed
 func (server *TCPServer) Close() {
   if server.isRunning.CompareAndSet(true, false) {
-    for v := range server.GetAllConnections().IterValues() {
-      c := v.(Connection)
-      c.Close()
+    server.GetTimingWheel().Stop()
+
+    var conns []Connection
+    server.connections.RLock()
+    for _, c := range server.connections.m {
+      conns = append(conns, c)
     }
+    server.connections.RUnlock()
+
+    for _, conn := range conns {
+      conn.Close()
+    }
+
     close(server.closeServChan)
     server.finish.Wait()
-    server.GetTimingWheel().Stop()
+
     os.Exit(0)
   }
 }
@@ -250,8 +264,12 @@ func (server *TLSTCPServer)IsRunning() bool {
   return server.TCPServer.IsRunning()
 }
 
-func (server *TLSTCPServer)GetAllConnections() *ConnectionMap {
-  return server.TCPServer.GetAllConnections()
+func (server *TLSTCPServer)GetConnections() []Connection {
+  return server.TCPServer.GetConnections()
+}
+
+func (server *TLSTCPServer)GetConnectionMap() *ConnectionMap {
+  return server.TCPServer.GetConnectionMap()
 }
 
 func (server *TLSTCPServer)GetTimingWheel() *TimingWheel {
@@ -327,7 +345,7 @@ func (server *TCPServer) timeOutLoop() {
       netid := timeout.ExtraData.(int64)
       if conn, ok := server.connections.Get(netid); ok {
         tcpConn := conn.(Connection)
-        if !tcpConn.IsClosed() {
+        if tcpConn.IsRunning() {
           tcpConn.GetTimeOutChannel()<- timeout
         }
       } else {

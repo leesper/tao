@@ -51,7 +51,7 @@ type Connection interface{
 
   Start()
   Close()
-  IsClosed() bool
+  IsRunning() bool
   Write(message Message) error
 
   RunAt(t time.Time, cb func(time.Time, interface{})) int64
@@ -76,7 +76,7 @@ type ServerConnection struct{
   heartBeat int64
   extraData atomic.Value
   owner *TCPServer
-  isClosed *AtomicBoolean
+  running *AtomicBoolean
   once sync.Once
   pendingTimers []int64
   conn net.Conn
@@ -100,7 +100,7 @@ func NewServerConnection(netid int64, server *TCPServer, conn net.Conn) Connecti
     name: conn.RemoteAddr().String(),
     heartBeat: time.Now().UnixNano(),
     owner: server,
-    isClosed: NewAtomicBoolean(false),
+    running: NewAtomicBoolean(true),
     pendingTimers: []int64{},
     conn: conn,
     messageCodec: TypeLengthValueCodec{},
@@ -176,34 +176,41 @@ func (conn *ServerConnection)Start() {
 
 func (conn *ServerConnection)Close() {
   conn.once.Do(func(){
-    if conn.isClosed.CompareAndSet(false, true) {
-      conn.GetOwner().connections.Remove(conn.GetNetId())
-      addTotalConn(-1)
-
-      holmes.Info("HOW MANY CONNECTIONS DO I HAVE: %d", conn.GetOwner().connections.Size())
-
-      if (conn.GetOnCloseCallback() != nil) {
-        conn.GetOnCloseCallback()(conn)
+    if conn.running.CompareAndSet(true, false) {
+      if (conn.onClose != nil) {
+        conn.onClose(conn)
       }
 
-      close(conn.GetCloseChannel())
-      close(conn.GetMessageSendChannel())
-      close(conn.GetMessageHandlerChannel())
-      close(conn.GetTimeOutChannel())
+      close(conn.messageSendChan)
+      close(conn.messageHandlerChan)
 
-      // wait for all loops to finish
-      conn.finish.Wait()
-      conn.GetRawConn().Close()
+      // clean up timed task
+      close(conn.timeOutChan)
       for _, id := range conn.GetPendingTimers() {
         conn.CancelTimer(id)
       }
+
+      // wait for go-routines holding readLoop, writeLoop and handleServerLoop to finish
+      close(conn.closeConnChan)
+      conn.finish.Wait()
+
+      if tcp, ok := conn.GetRawConn().(*net.TCPConn); ok {
+        // avoid time-wait state
+        tcp.SetLinger(0)
+      }
+      conn.GetRawConn().Close()
+
+      conn.GetOwner().connections.Remove(conn.GetNetId())
+      addTotalConn(-1)
+      holmes.Info("HOW MANY CONNECTIONS DO I HAVE: %d", conn.GetOwner().connections.Size())
+
       conn.GetOwner().finish.Done()
     }
   })
 }
 
-func (conn *ServerConnection)IsClosed() bool {
-  return conn.isClosed.Get()
+func (conn *ServerConnection)IsRunning() bool {
+  return conn.running.Get()
 }
 
 func (conn *ServerConnection)SetPendingTimers(pending []int64) {
@@ -301,7 +308,7 @@ type ClientConnection struct{
   address string
   heartBeat int64
   extraData atomic.Value
-  isClosed *AtomicBoolean
+  running *AtomicBoolean
   once *sync.Once
   pendingTimers []int64
   timingWheel *TimingWheel
@@ -327,7 +334,7 @@ func NewClientConnection(netid int64, reconnectable bool, c net.Conn, tconf *tls
     name: c.RemoteAddr().String(),
     address: c.RemoteAddr().String(),
     heartBeat: time.Now().UnixNano(),
-    isClosed: NewAtomicBoolean(false),
+    running: NewAtomicBoolean(true),
     once: &sync.Once{},
     pendingTimers: []int64{},
     timingWheel: NewTimingWheel(),
@@ -430,7 +437,7 @@ func (client *ClientConnection)Start() {
 func (client *ClientConnection)Close() {
   done := false
   client.once.Do(func() {
-    if client.isClosed.CompareAndSet(false, true) {
+    if client.running.CompareAndSet(true, false) {
       if client.GetOnCloseCallback() != nil {
         client.GetOnCloseCallback()(client)
       }
@@ -479,11 +486,11 @@ func (client *ClientConnection)reconnect() {
   client.messageHandlerChan = make(chan MessageHandler, 1024)
   client.closeConnChan = make(chan struct{})
   client.Start()
-  client.isClosed.CompareAndSet(true, false)
+  client.running.CompareAndSet(false, true)
 }
 
-func (client *ClientConnection)IsClosed() bool {
-  return client.isClosed.Get()
+func (client *ClientConnection)IsRunning() bool {
+  return client.running.Get()
 }
 
 func (client *ClientConnection)Write(message Message) error {
@@ -588,10 +595,6 @@ func asyncWrite(conn Connection, message Message) error {
     return nil
   }()
 
-  if conn.IsClosed() {
-    return ErrorConnClosed
-  }
-
   packet, err := conn.GetMessageCodec().Encode(message)
   if err != nil {
     holmes.Error("asyncWrite error %v", err)
@@ -617,40 +620,37 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
     conn.Close()
   }()
 
-  for {
+  for conn.IsRunning() {
     select {
     case <-conn.GetCloseChannel():
       return
 
     default:
-    }
+      msg, err := conn.GetMessageCodec().Decode(conn)
+      if err != nil {
+        holmes.Error("Error decoding message %v", err)
+        if _, ok := err.(ErrorUndefined); ok {
+          // update heart beat timestamp
+          conn.SetHeartBeat(time.Now().UnixNano())
+          continue
+        }
+        return
+      }
 
-    msg, err := conn.GetMessageCodec().Decode(conn)
-    if err != nil {
-      holmes.Error("Error decoding message %v", err)
-      if _, ok := err.(ErrorUndefined); ok {
-        // update heart beat timestamp
-        conn.SetHeartBeat(time.Now().UnixNano())
+      // update heart beat timestamp
+      conn.SetHeartBeat(time.Now().UnixNano())
+      handler := HandlerMap.Get(msg.MessageNumber())
+      if handler == nil {
+        if conn.GetOnMessageCallback() != nil {
+          holmes.Info("Message %d call onMessage()", msg.MessageNumber())
+          conn.GetOnMessageCallback()(msg, conn)
+        } else {
+          holmes.Warn("No handler or onMessage() found for message %d", msg.MessageNumber())
+        }
         continue
       }
-      return
-    }
 
-    // update heart beat timestamp
-    conn.SetHeartBeat(time.Now().UnixNano())
-    handler := HandlerMap.Get(msg.MessageNumber())
-    if handler == nil {
-      if conn.GetOnMessageCallback() != nil {
-        holmes.Info("Message %d call onMessage()", msg.MessageNumber())
-        conn.GetOnMessageCallback()(msg, conn)
-      } else {
-        holmes.Warn("No handler or onMessage() found for message %d", msg.MessageNumber())
-      }
-      continue
-    }
-
-    // send handler to handleLoop
-    if !conn.IsClosed() {
+      // send handler to handleLoop
       conn.GetMessageHandlerChannel()<- MessageHandler{msg, handler}
     }
   }
@@ -675,7 +675,7 @@ func writeLoop(conn Connection, finish *sync.WaitGroup) {
     conn.Close()
   }()
 
-  for {
+  for conn.IsRunning() {
     select {
     case <-conn.GetCloseChannel():
       return
@@ -701,7 +701,7 @@ func handleServerLoop(conn Connection, finish *sync.WaitGroup) {
     conn.Close()
   }()
 
-  for {
+  for conn.IsRunning() {
     select {
     case <-conn.GetCloseChannel():
       return
@@ -740,7 +740,7 @@ func handleClientLoop(conn Connection, finish *sync.WaitGroup) {
     conn.Close()
   }()
 
-  for {
+  for conn.IsRunning() {
     select {
     case <-conn.GetCloseChannel():
       return
