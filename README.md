@@ -99,7 +99,7 @@ import (
   "runtime"
   "github.com/leesper/tao"
   "github.com/leesper/tao/examples/chat"
-  "github.com/leesper/holmes"
+  "github.com/reechou/holmes"
 )
 
 type ChatServer struct {

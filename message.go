@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/leesper/holmes"
+	"github.com/reechou/holmes"
 )
 
 func init() {

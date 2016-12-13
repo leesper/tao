@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leesper/holmes"
+	"github.com/reechou/holmes"
 )
 
 var timerIds *AtomicInt64

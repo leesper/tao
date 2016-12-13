@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/leesper/holmes"
+	"github.com/reechou/holmes"
 	"github.com/leesper/tao"
 	"github.com/leesper/tao/examples/pingpong"
 	"runtime"

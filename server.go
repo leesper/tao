@@ -3,17 +3,15 @@ package tao
 import (
 	"crypto/rand"
 	"crypto/tls"
-	"flag"
 	"net"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/leesper/holmes"
+	"github.com/reechou/holmes"
 )
 
 func init() {
-	flag.Parse()
 	netIdentifier = NewAtomicInt64(0)
 	tlsWrapper = func(conn net.Conn) net.Conn {
 		return conn
@@ -44,6 +42,8 @@ type Server interface {
 	GetOnCloseCallback() onCloseFunc
 	SetOnErrorCallback(func())
 	GetOnErrorCallback() onErrorFunc
+	SetCodec(codec Codec)
+	GetCodec() Codec
 }
 
 type TCPServer struct {
@@ -58,6 +58,7 @@ type TCPServer struct {
 	onMessage onMessageFunc
 	onClose   onCloseFunc
 	onError   onErrorFunc
+	codec     Codec
 
 	duration   time.Duration
 	onSchedule onScheduleFunc
@@ -233,6 +234,14 @@ func (server *TCPServer) SetOnErrorCallback(callback func()) {
 
 func (server *TCPServer) GetOnErrorCallback() onErrorFunc {
 	return server.onError
+}
+
+func (server *TCPServer) SetCodec(codec Codec) {
+	server.codec = codec
+}
+
+func (server *TCPServer) GetCodec() Codec {
+	return server.codec
 }
 
 type TLSTCPServer struct {

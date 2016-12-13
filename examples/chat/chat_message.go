@@ -2,7 +2,7 @@ package chat
 
 import (
 	"errors"
-	"github.com/leesper/tao"
+	"github.com/reechou/tao"
 )
 
 const (

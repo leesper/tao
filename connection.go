@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/leesper/holmes"
+	"github.com/reechou/holmes"
 )
 
 const (
