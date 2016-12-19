@@ -3,7 +3,20 @@ Tao --- 轻量级TCP异步框架，Go语言实现
 
 ## Light-weight TCP Asynchronous gOlang framework
 
-Announcing Tao 1.3 - Release NOtes
+Announcing Tao 1.4 - Release Notes
+--------
+1. bugfix：TLS重连失败问题；<br/>
+bugfix: failed to reconnect the TLS connection;
+2. bugfix：ConnectionMap死锁问题；<br/>
+bugfix: ConnectionMap dead-lock problem;
+3. 优化TCP网络连接的关闭过程；<br/>
+Optimize the closing process of TCP connection;
+4. 优化服务器的关闭过程；<br/>
+Optimize the closing process of server;
+5. 更优雅的消息处理注册接口；<br/>
+More elegant message handler register interface;
+
+Announcing Tao 1.3 - Release Notes
 --------
 1. bugfix：修复断线重连状态不一致问题；<br/>
 bugfix: fixed inconsistent status caused by reconnecting;
@@ -115,9 +128,9 @@ func NewChatServer(addr string) *ChatServer {
 func main() {
   runtime.GOMAXPROCS(runtime.NumCPU())
   defer holmes.Start().Stop()
+  tao.MonitorOn(12345)
 
-  tao.MessageMap.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage)
-  tao.HandlerMap.Register(chat.CHAT_MESSAGE, chat.ProcessChatMessage)
+  tao.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage, chat.ProcessChatMessage)
 
   chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
 

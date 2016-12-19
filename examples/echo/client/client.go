@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-  tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
+  tao.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage, nil)
   c, err := net.Dial("tcp", "127.0.0.1:18342")
   if err != nil {
     holmes.Fatal("%v", err)

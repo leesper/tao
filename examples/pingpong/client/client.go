@@ -14,8 +14,8 @@ var (
 
 func main() {
   defer holmes.Start().Stop()
-  tao.MessageMap.Register(pingpong.PINGPONG_MESSAGE, pingpong.DeserializePingPongMessage)
-  tao.HandlerMap.Register(pingpong.PINGPONG_MESSAGE, ProcessPingPongMessage)
+
+  tao.Register(pingpong.PINGPONG_MESSAGE, pingpong.DeserializePingPongMessage, ProcessPingPongMessage)
 
   c, err := net.Dial("tcp", "127.0.0.1:18341")
   if err != nil {

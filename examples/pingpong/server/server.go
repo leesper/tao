@@ -23,8 +23,7 @@ func main() {
   defer holmes.Start().Stop()
   tao.MonitorOn(12345)
 
-  tao.MessageMap.Register(pingpong.PINGPONG_MESSAGE, pingpong.DeserializePingPongMessage)
-  tao.HandlerMap.Register(pingpong.PINGPONG_MESSAGE, ProcessPingPongMessage)
+  tao.Register(pingpong.PINGPONG_MESSAGE, pingpong.DeserializePingPongMessage, ProcessPingPongMessage)
 
   server := NewPingPongServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
 

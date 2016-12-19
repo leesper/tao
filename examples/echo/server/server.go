@@ -22,8 +22,7 @@ func main() {
 
   runtime.GOMAXPROCS(runtime.NumCPU())
 
-  tao.MessageMap.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage)
-  tao.HandlerMap.Register(echo.EchoMessage{}.MessageNumber(), echo.ProcessEchoMessage)
+  tao.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage, echo.ProcessEchoMessage)
 
   echoServer := NewEchoServer(":18342")
   defer echoServer.Close()

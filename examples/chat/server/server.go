@@ -23,8 +23,7 @@ func main() {
   defer holmes.Start().Stop()
   tao.MonitorOn(12345)
 
-  tao.MessageMap.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage)
-  tao.HandlerMap.Register(chat.CHAT_MESSAGE, chat.ProcessChatMessage)
+  tao.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage, chat.ProcessChatMessage)
 
   chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
 

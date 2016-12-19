@@ -3,36 +3,83 @@ package tao
 import (
   "bytes"
   "encoding/binary"
+  "fmt"
   "io"
 
   "github.com/leesper/holmes"
 )
 
-func init() {
-  MessageMap = make(MessageMapType)
-  HandlerMap = make(HandlerMapType)
-  buf = new(bytes.Buffer)
+// handlerFunc handles the business logic for some type of Message.
+type handlerFunc func(Context, Connection)
+
+// unmarshalFunc parses bytes into Message.
+type unmarshalFunc func([]byte) (Message, error)
+
+// messageFunc is the collection of unmarshal and handle functions about Message.
+type messageFunc struct {
+  handler handlerFunc
+  unmarshaler unmarshalFunc
 }
 
-var (
-  MessageMap MessageMapType
-  HandlerMap HandlerMapType
-  buf *bytes.Buffer
-)
-
+// 0 is the preserved heart beat message number, you can define your own.
 const (
   HEART_BEAT = 0
 )
 
-type HandlerFunction func(Context, Connection)
-type UnmarshalFunction func([]byte) (Message, error)
+// messageRegistry is the inner registry of all message related unmarshal and handle functions.
+var (
+  buf *bytes.Buffer
+  messageRegistry map[int32]messageFunc
+)
 
+func init() {
+  messageRegistry = map[int32]messageFunc{}
+  buf = new(bytes.Buffer)
+}
+
+// Register registers the unmarshal and handle functions for msgType.
+// If no unmarshal function provided, the message will not be parsed.
+// If no handler function provided, the message will not be handled unless you
+// set a default one by calling SetOnMessageCallback.
+// If Register being called twice on one msgType, it will panics.
+func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(Context, Connection)) {
+  if _, ok := messageRegistry[msgType]; ok {
+    panic(fmt.Sprintf("trying to register message %d twice", msgType))
+  }
+
+  messageRegistry[msgType] = messageFunc{
+    unmarshaler: unmarshaler,
+    handler: handler,
+  }
+}
+
+// GetUnmarshaler returns the corresponding unmarshal function for msgType.
+func GetUnmarshaler(msgType int32) unmarshalFunc {
+  entry, ok := messageRegistry[msgType]
+  if !ok {
+    return nil
+  }
+  return entry.unmarshaler
+}
+
+// GetHandler returns the corresponding handler function for msgType.
+func GetHandler(msgType int32) handlerFunc {
+  entry, ok := messageRegistry[msgType]
+  if !ok {
+    return nil
+  }
+  return entry.handler
+}
+
+// Message represents the structured data that can be handled.
 type Message interface {
   MessageNumber() int32
   Serialize() ([]byte, error)
 }
 
-// User context info
+// Context is the context info for every handler function.
+// Handler function handles the business logic about message.
+// We can find the client connection who sent this message by netid and send back responses.
 type Context struct{
   message Message
   netid int64
@@ -53,34 +100,7 @@ func (ctx Context)Id() int64 {
   return ctx.netid
 }
 
-type MessageMapType map[int32]UnmarshalFunction
-
-func (mm *MessageMapType) Register(msgType int32, unmarshaler func([]byte) (Message, error)) {
-  (*mm)[msgType] = UnmarshalFunction(unmarshaler)
-}
-
-func (mm *MessageMapType) Get(msgType int32) UnmarshalFunction {
-  if unmarshaler, ok := (*mm)[msgType]; ok {
-    return unmarshaler
-  }
-  return nil
-}
-
-type HandlerMapType map[int32]HandlerFunction
-
-func (hm *HandlerMapType) Register(msgType int32, handler func(Context, Connection)) {
-  (*hm)[msgType] = HandlerFunction(handler)
-}
-
-func (hm *HandlerMapType) Get(msgType int32) HandlerFunction {
-  if fn, ok := (*hm)[msgType]; ok {
-    return fn
-  }
-  return nil
-}
-
-/* Message number 0 is the preserved message
-for long-term connection keeping alive */
+// HeartBeatMessage for long-term connection keeping alive.
 type HeartBeatMessage struct {
   Timestamp int64
 }
@@ -118,15 +138,17 @@ func ProcessHeartBeatMessage(ctx Context, conn Connection) {
   conn.SetHeartBeat(heartBeatMsg.Timestamp)
 }
 
-/* Application programmer can define a custom codec themselves */
+// Codec is the interface for message coder and decoder.
+// Application programmer can define a custom codec themselves.
 type Codec interface {
   Decode(Connection) (Message, error)
   Encode(Message) ([]byte, error)
 }
 
-// use type-length-value format: |4 bytes|4 bytes|n bytes <= 8M|
+// Format: type-length-value |4 bytes|4 bytes|n bytes <= 8M|
 type TypeLengthValueCodec struct {}
 
+// Decode decodes the bytes data into Message
 func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
   byteChan := make(chan []byte)
   errorChan := make(chan error)
@@ -179,7 +201,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
     }
 
     // deserialize message from bytes
-    unmarshaler := MessageMap.Get(msgType)
+    unmarshaler := GetUnmarshaler(msgType)
     if unmarshaler == nil {
       return nil, Undefined(msgType)
     }
@@ -187,6 +209,7 @@ func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
   }
 }
 
+// Encode encodes the message into bytes data.
 func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
   data, err := msg.Serialize()
   if err != nil {

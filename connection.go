@@ -18,7 +18,7 @@ const (
 
 type MessageHandler struct{
   message Message
-  handler HandlerFunction
+  handler handlerFunc
 }
 
 type Connection interface{
@@ -639,7 +639,7 @@ func readLoop(conn Connection, finish *sync.WaitGroup) {
 
       // update heart beat timestamp
       conn.SetHeartBeat(time.Now().UnixNano())
-      handler := HandlerMap.Get(msg.MessageNumber())
+      handler := GetHandler(msg.MessageNumber())
       if handler == nil {
         if conn.GetOnMessageCallback() != nil {
           holmes.Info("Message %d call onMessage()", msg.MessageNumber())

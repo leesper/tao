@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-  tao.MessageMap.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage)
+  tao.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage, nil)
 
   c, err := net.Dial("tcp", "127.0.0.1:18341")
   if err != nil {
