@@ -9,6 +9,11 @@ import (
   "github.com/leesper/holmes"
 )
 
+// 0 is the preserved heart beat message number, you can define your own.
+const (
+  HEART_BEAT = 0
+)
+
 // handlerFunc handles the business logic for some type of Message.
 type handlerFunc func(Context, Connection)
 
@@ -20,11 +25,6 @@ type messageFunc struct {
   handler handlerFunc
   unmarshaler unmarshalFunc
 }
-
-// 0 is the preserved heart beat message number, you can define your own.
-const (
-  HEART_BEAT = 0
-)
 
 // messageRegistry is the inner registry of all message related unmarshal and handle functions.
 var (
