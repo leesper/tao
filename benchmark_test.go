@@ -12,8 +12,8 @@ var (
 	listN  int
 	number int
 	list   [][]interface{}
-	cMap *ConcurrentMap
-	lMap *lockMap
+	cMap   *ConcurrentMap
+	lMap   *lockMap
 )
 
 func init() {
@@ -27,7 +27,7 @@ func init() {
 	for i := 0; i < listN; i++ {
 		list1 := make([]interface{}, 0, number)
 		for j := 0; j < number; j++ {
-			list1 = append(list1, j + i * number / 10)
+			list1 = append(list1, j+i*number/10)
 		}
 		list[i] = list1
 	}
@@ -41,7 +41,7 @@ func init() {
 }
 
 type lockMap struct {
-	m  map[interface{}]interface{}
+	m map[interface{}]interface{}
 	sync.RWMutex
 }
 
@@ -69,20 +69,20 @@ func (t *lockMap) get(k interface{}) (v interface{}, ok bool) {
 
 func (t *lockMap) len() int {
 	t.RLock()
+	defer t.RUnlock()
 	return len(t.m)
-	t.RUnlock()
 }
 
 func newLockMap() *lockMap {
 	return &lockMap{
-    m: make(map[interface{}]interface{}),
-  }
+		m: make(map[interface{}]interface{}),
+	}
 }
 
 func newLockMap1(initCap int) *lockMap {
 	return &lockMap{
-    m: make(map[interface{}]interface{}, initCap),
-  }
+		m: make(map[interface{}]interface{}, initCap),
+	}
 }
 
 func BenchmarkLockMapPut(b *testing.B) {
