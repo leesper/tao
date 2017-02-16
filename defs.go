@@ -1,37 +1,41 @@
 package tao
 
 import (
-  "fmt"
-  "errors"
+	"errors"
+	"fmt"
 )
 
+// ErrUndefined for undefined message type.
+type ErrUndefined int32
+
+func (e ErrUndefined) Error() string {
+	return fmt.Sprintf("undefined message type %d", e)
+}
+
 var (
-  ErrorParameter error = errors.New("Parameter error")
-  ErrorNilKey error = errors.New("Nil key")
-  ErrorNilValue error = errors.New("Nil value")
-  ErrorWouldBlock error = errors.New("Would block")
-  ErrorNotHashable error = errors.New("Not hashable")
-  ErrorNilData error = errors.New("Nil data")
-  ErrorIllegalData error = errors.New("More than 8M data")
-  ErrorNotImplemented error = errors.New("Not implemented")
-  ErrorConnClosed error = errors.New("Connection closed")
+	// ErrParameter for parameter error.
+	ErrParameter = errors.New("parameter error")
+	// ErrNilKey for nil key.
+	ErrNilKey = errors.New("nil key")
+	// ErrNilValue for nil value.
+	ErrNilValue = errors.New("nil value")
+	// ErrWouldBlock for opertion may be blocked.
+	ErrWouldBlock = errors.New("would block")
+	// ErrNotHashable for type not hashable.
+	ErrNotHashable = errors.New("not hashable")
+	// ErrNilData for nil data.
+	ErrNilData = errors.New("nil data")
+	// ErrBadData for more than 8M data.
+	ErrBadData = errors.New("more than 8M data")
+	// ErrNotRegistered for message handler not registered.
+	ErrNotRegistered = errors.New("handler not registered")
+	// ErrServerClose for connection closed by server.
+	ErrServerClosed = errors.New("server has been closed")
 )
 
 const (
-  WORKERS = 20
-  MAX_CONNECTIONS = 1000
+	// WorkersNum is the number of worker go-routines.
+	WorkersNum = 20
+	// MaxConnections is the maximum number of client connections allowed.
+	MaxConnections = 1000
 )
-
-func Undefined(msgType int32) error {
-  return ErrorUndefined{
-    msgType: msgType,
-  }
-}
-
-type ErrorUndefined struct{
-  msgType int32
-}
-
-func (eu ErrorUndefined) Error() string {
-  return fmt.Sprintf("Undefined message %d", eu.msgType)
-}
