@@ -11,12 +11,12 @@ import (
 
 type ConnMap struct {
 	sync.RWMutex
-	m map[int64]Connection
+	m map[int64]interface{}
 }
 
 func NewConnMap() *ConnMap {
 	return &ConnMap{
-		m: make(map[int64]Connection),
+		m: make(map[int64]interface{}),
 	}
 }
 

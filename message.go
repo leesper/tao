@@ -21,10 +21,10 @@ type Handler interface {
 }
 
 // HandlerFunc serves as an adapter to allow the use of ordinary functions as handlers.
-type HandlerFunc func(context.Context, Connection)
+type HandlerFunc func(context.Context, interface{})
 
 // Handle calls f(ctx, c)
-func (f HandlerFunc) Handle(ctx context.Context, c Connection) {
+func (f HandlerFunc) Handle(ctx context.Context, c interface{}) {
 	f(ctx, c)
 }
 
@@ -224,6 +224,8 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
 type ctxKey int
 
 const msgCtxKey ctxKey = 0
+const srvCtxKey ctxKey = 1
+const cliCtxKey cliKey = 2
 
 // NewContextWithMessage returns a new context that carries message.
 func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
