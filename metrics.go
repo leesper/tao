@@ -23,6 +23,7 @@ func init() {
 	qpsExported = expvar.NewFloat("QPS")
 }
 
+// MonitorOn starts up an HTTP monitor on port.
 func MonitorOn(port int) {
 	go func() {
 		if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {

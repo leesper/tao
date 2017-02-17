@@ -29,7 +29,7 @@ var (
 	ErrBadData = errors.New("more than 8M data")
 	// ErrNotRegistered for message handler not registered.
 	ErrNotRegistered = errors.New("handler not registered")
-	// ErrServerClose for connection closed by server.
+	// ErrServerClosed for connection closed by server.
 	ErrServerClosed = errors.New("server has been closed")
 )
 
