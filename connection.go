@@ -2,6 +2,7 @@ package tao
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ func NewServerConn(id int64, s *TCPServer, c net.Conn) *ServerConn {
 		timerChan:   make(chan *OnTimeOut),
 		heart:       time.Now().UnixNano(),
 	}
-	sc.ctx, sc.cancel = context.WithCancel(context.Background())
+	sc.ctx, sc.cancel = context.WithCancel(s.ctx)
 	sc.name = c.RemoteAddr().String()
 	sc.pending = []int64{}
 	return sc
@@ -121,10 +122,10 @@ func (sc *ServerConn) Start() {
 		onConnect(sc)
 	}
 
-	sc.wg.Add(3)
-	loopers := []func(interface{}, *sync.WaitGroup){readLoop, writeLoop, handleServerLoop}
+	loopers := []func(interface{}, *sync.WaitGroup){readLoop, writeLoop, handleLoop}
 	for _, l := range loopers {
 		looper := l
+		sc.wg.Add(1)
 		go looper(sc, sc.wg)
 	}
 }
@@ -178,11 +179,6 @@ func (sc *ServerConn) AddPendingTimer(timerID int64) {
 	}
 }
 
-// GetMessageCodec returns the underlying codec.
-func (sc *ServerConn) GetMessageCodec() Codec {
-	return sc.belong.opts.codec
-}
-
 // Write writes a message to the client.
 func (sc *ServerConn) Write(message Message) error {
 	return asyncWrite(sc, message)
@@ -203,14 +199,15 @@ func (sc *ServerConn) RunEvery(interval time.Duration, callback func(time.Time, 
 	return runEvery(sc, interval, callback)
 }
 
-// GetTimingWheel gets the timer controller from the belonged server.
-func (sc *ServerConn) GetTimingWheel() *TimingWheel {
-	return sc.belong.timing
-}
-
 // CancelTimer cancels a timer with the specified ID.
 func (sc *ServerConn) CancelTimer(timerID int64) {
-	sc.GetTimingWheel().CancelTimer(timerID)
+	cancelTimer(sc.belong.timing, timerID)
+}
+
+func cancelTimer(timing *TimingWheel, timerID int64) {
+	if timing != nil {
+		timing.CancelTimer(timerID)
+	}
 }
 
 // GetRemoteAddr returns the peer address of server connection.
@@ -247,7 +244,10 @@ func NewClientConn(netid int64, c net.Conn, opt ...ServerOption) *ClientConn {
 	if opts.codec == nil {
 		opts.codec = TypeLengthValueCodec{}
 	}
+	return newClientConnWithOptions(netid, c, opts)
+}
 
+func newClientConnWithOptions(netid int64, c net.Conn, opts options) *ClientConn {
 	cc := &ClientConn{
 		addr:        c.RemoteAddr().String(),
 		opts:        opts,
@@ -257,9 +257,9 @@ func NewClientConn(netid int64, c net.Conn, opt ...ServerOption) *ClientConn {
 		sendChan:    make(chan []byte, 1024),
 		handlerChan: make(chan MessageHandler, 1024),
 		heart:       time.Now().UnixNano(),
-		timing:      NewTimingWheel(),
 	}
 	cc.ctx, cc.cancel = context.WithCancel(context.Background())
+	cc.timing = NewTimingWheel(cc.ctx)
 	cc.name = c.RemoteAddr().String()
 	cc.pending = []int64{}
 	return cc
@@ -300,11 +300,6 @@ func (cc *ClientConn) GetHeartBeat() int64 {
 	return heart
 }
 
-// GetMessageCodec returns the underlying codec.
-func (cc *ClientConn) GetMessageCodec() Codec {
-	return cc.opts.codec
-}
-
 // SetExtraData sets extra data to client connection.
 func (cc *ClientConn) SetExtraData(extra interface{}) {
 	cc.mu.Lock()
@@ -328,10 +323,10 @@ func (cc *ClientConn) Start() {
 		onConnect(cc)
 	}
 
-	cc.wg.Add(3)
-	loopers := []func(interface{}, *sync.WaitGroup){readLoop, writeLoop, handleClientLoop}
+	loopers := []func(interface{}, *sync.WaitGroup){readLoop, writeLoop, handleLoop}
 	for _, l := range loopers {
 		looper := l
+		cc.wg.Add(1)
 		go looper(cc, cc.wg)
 	}
 }
@@ -361,34 +356,23 @@ func (cc *ClientConn) Stop() {
 }
 
 // deprecated
-// func (client *ClientConnection) reconnect() {
-// 	var c net.Conn
-// 	var err error
-// 	if client.tconfig == nil {
-// 		c, err = net.Dial("tcp", client.address)
-// 		if err != nil {
-// 			holmes.Fatal("net Dial error %v", err)
-// 		}
-// 	} else {
-// 		c, err = tls.Dial("tcp", client.address, client.tconfig)
-// 		if err != nil {
-// 			holmes.Fatal("tls Dial error %v", err)
-// 		}
-// 	}
-//
-// 	client.name = c.RemoteAddr().String()
-// 	client.heartBeat = time.Now().UnixNano()
-// 	client.extraData.Store(struct{}{})
-// 	client.once = &sync.Once{}
-// 	client.pendingTimers = []int64{}
-// 	client.timingWheel = NewTimingWheel()
-// 	client.conn = c
-// 	client.messageSendChan = make(chan []byte, 1024)
-// 	client.messageHandlerChan = make(chan MessageHandler, 1024)
-// 	client.closeConnChan = make(chan struct{})
-// 	client.Start()
-// 	client.running.CompareAndSet(false, true)
-// }
+func (cc *ClientConn) reconnect() {
+	var c net.Conn
+	var err error
+	if cc.opts.tlsCfg != nil {
+		c, err = tls.Dial("tcp", cc.addr, cc.opts.tlsCfg)
+		if err != nil {
+			holmes.Fatal("tls dial error", err)
+		}
+	} else {
+		c, err = net.Dial("tcp", cc.addr)
+		if err != nil {
+			holmes.Fatal("net dial error", err)
+		}
+	}
+	cc = newClientConnWithOptions(cc.netid, c, cc.opts)
+	cc.Start()
+}
 
 // Write writes a message to the client.
 func (cc *ClientConn) Write(message Message) error {
@@ -421,7 +405,7 @@ func (cc *ClientConn) AddPendingTimer(timerID int64) {
 
 // CancelTimer cancels a timer with the specified ID.
 func (cc *ClientConn) CancelTimer(timerID int64) {
-	cc.timing.CancelTimer(timerID)
+	cancelTimer(cc.timing, timerID)
 }
 
 // GetRemoteAddr returns the peer address of server connection.
@@ -516,7 +500,8 @@ func readLoop(c interface{}, wg *sync.WaitGroup) {
 	var (
 		rawConn          net.Conn
 		codec            Codec
-		done             <-chan struct{}
+		cDone            <-chan struct{}
+		sDone            <-chan struct{}
 		setHeartBeatFunc func(int64)
 		onMessage        onMessageFunc
 		handlerCh        chan MessageHandler
@@ -528,13 +513,15 @@ func readLoop(c interface{}, wg *sync.WaitGroup) {
 	case *ServerConn:
 		rawConn = c.rawConn
 		codec = c.belong.opts.codec
-		done = c.ctx.Done()
+		cDone = c.ctx.Done()
+		sDone = c.belong.ctx.Done()
 		setHeartBeatFunc = c.SetHeartBeat
 		onMessage = c.belong.opts.onMessage
 	case *ClientConn:
 		rawConn = c.rawConn
 		codec = c.opts.codec
-		done = c.ctx.Done()
+		cDone = c.ctx.Done()
+		sDone = nil
 		setHeartBeatFunc = c.SetHeartBeat
 		onMessage = c.opts.onMessage
 	}
@@ -549,7 +536,9 @@ func readLoop(c interface{}, wg *sync.WaitGroup) {
 
 	for {
 		select {
-		case <-done:
+		case <-cDone: // connection closed
+			return
+		case <-sDone: // server closed
 			return
 		default:
 			msg, err = codec.Decode(rawConn)
@@ -584,7 +573,8 @@ func writeLoop(c interface{}, wg *sync.WaitGroup) {
 	var (
 		rawConn net.Conn
 		sendCh  chan []byte
-		done    <-chan struct{}
+		cDone   <-chan struct{}
+		sDone   <-chan struct{}
 		pkt     []byte
 		err     error
 	)
@@ -593,11 +583,13 @@ func writeLoop(c interface{}, wg *sync.WaitGroup) {
 	case *ServerConn:
 		rawConn = c.rawConn
 		sendCh = c.sendChan
-		done = c.ctx.Done()
+		cDone = c.ctx.Done()
+		sDone = c.belong.ctx.Done()
 	case *ClientConn:
 		rawConn = c.rawConn
 		sendCh = c.sendChan
-		done = c.ctx.Done()
+		cDone = c.ctx.Done()
+		sDone = nil
 	}
 
 	defer func() {
@@ -618,7 +610,9 @@ func writeLoop(c interface{}, wg *sync.WaitGroup) {
 
 	for {
 		select {
-		case <-done:
+		case <-cDone: // connection closed
+			return
+		case <-sDone: // server closed
 			return
 		case pkt = <-sendCh:
 			if pkt != nil {
@@ -631,28 +625,33 @@ func writeLoop(c interface{}, wg *sync.WaitGroup) {
 	}
 }
 
-// handleServerLoop() - put handler or timeout callback into worker go-routines
-func handleServerLoop(c interface{}, wg *sync.WaitGroup) {
+// handleLoop() - put handler or timeout callback into worker go-routines
+func handleLoop(c interface{}, wg *sync.WaitGroup) {
 	var (
-		rawConn     net.Conn
-		done        <-chan struct{}
-		timerChan   chan *OnTimeOut
-		handlerChan chan MessageHandler
-		netID       int64
-		ctx         context.Context
+		rawConn      net.Conn
+		cDone        <-chan struct{}
+		sDone        <-chan struct{}
+		timerChan    chan *OnTimeOut
+		handlerChan  chan MessageHandler
+		netID        int64
+		ctx          context.Context
+		askForWorker bool
 	)
 
 	switch c := c.(type) {
 	case *ServerConn:
 		rawConn = c.rawConn
-		done = c.ctx.Done()
+		cDone = c.ctx.Done()
+		sDone = c.belong.ctx.Done()
 		timerChan = c.belong.timing.GetTimeOutChannel()
 		handlerChan = c.handlerChan
 		netID = c.netid
 		ctx = c.ctx
+		askForWorker = true
 	case *ClientConn:
 		rawConn = c.rawConn
-		done = c.ctx.Done()
+		cDone = c.ctx.Done()
+		sDone = nil
 		timerChan = c.timing.timeOutChan
 		handlerChan = c.handlerChan
 		netID = c.netid
@@ -669,15 +668,21 @@ func handleServerLoop(c interface{}, wg *sync.WaitGroup) {
 
 	for {
 		select {
-		case <-done:
+		case <-cDone: // connectin closed
+			return
+		case <-sDone: // server closed
 			return
 		case msgHandler := <-handlerChan:
 			msg, handler := msgHandler.message, msgHandler.handler
 			if handler != nil {
-				WorkerPoolInstance().Put(netID, func() {
+				if askForWorker {
+					WorkerPoolInstance().Put(netID, func() {
+						handler(NewContextWithMessage(ctx, msg), c)
+					})
+					addTotalHandle()
+				} else {
 					handler(NewContextWithMessage(ctx, msg), c)
-				})
-				addTotalHandle()
+				}
 			}
 		case timeout := <-timerChan:
 			if timeout != nil {
@@ -685,66 +690,13 @@ func handleServerLoop(c interface{}, wg *sync.WaitGroup) {
 				if extraData != netID {
 					holmes.Error("timeout net %d, conn net %d, mismatched!", extraData, netID)
 				}
-				WorkerPoolInstance().Put(netID, func() {
+				if askForWorker {
+					WorkerPoolInstance().Put(netID, func() {
+						timeout.Callback(time.Now(), c)
+					})
+				} else {
 					timeout.Callback(time.Now(), c)
-				})
-			}
-		}
-	}
-}
-
-// handleClientLoop() - run handler or timeout callback in handleLoop() go-routine
-func handleClientLoop(c interface{}, wg *sync.WaitGroup) {
-	var (
-		rawConn     net.Conn
-		done        <-chan struct{}
-		handlerChan chan MessageHandler
-		timeoutChan chan *OnTimeOut
-		netID       int64
-		ctx         context.Context
-	)
-
-	switch c := c.(type) {
-	case *ServerConn:
-		rawConn = c.rawConn
-		done = c.ctx.Done()
-		handlerChan = c.handlerChan
-		timeoutChan = c.belong.timing.GetTimeOutChannel()
-		netID = c.netid
-		ctx = c.ctx
-	case *ClientConn:
-		rawConn = c.rawConn
-		done = c.ctx.Done()
-		handlerChan = c.handlerChan
-		timeoutChan = c.timing.GetTimeOutChannel()
-		netID = c.netid
-		ctx = c.ctx
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			holmes.Error("panics: %v", p)
-		}
-		wg.Done()
-		rawConn.Close()
-	}()
-
-	for {
-		select {
-		case <-done:
-			return
-		case msgHandler := <-handlerChan:
-			msg, handler := msgHandler.message, msgHandler.handler
-			if handler != nil {
-				handler(NewContextWithMessage(ctx, msg), c)
-			}
-		case timeout := <-timeoutChan:
-			if timeout != nil {
-				extraData := timeout.ExtraData.(int64)
-				if extraData != netID {
-					holmes.Error("timeout net %d, conn net %d, mismatched!", extraData, netID)
 				}
-				timeout.Callback(time.Now(), c)
 			}
 		}
 	}

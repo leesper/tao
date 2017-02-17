@@ -110,12 +110,12 @@ func NewTCPServer(opt ...ServerOption) *TCPServer {
 	}
 
 	s := &TCPServer{
-		opts:   opts,
-		conns:  NewConnMap(),
-		timing: NewTimingWheel(),
-		wg:     &sync.WaitGroup{},
+		opts:  opts,
+		conns: NewConnMap(),
+		wg:    &sync.WaitGroup{},
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.timing = NewTimingWheel(s.ctx)
 	return s
 }
 
@@ -244,7 +244,7 @@ func (s *TCPServer) Stop() {
 
 	s.wg.Wait()
 
-	holmes.Info("server stopped gracefully, good bye my friend.")
+	holmes.Info("server stopped gracefully, bye.")
 	os.Exit(0)
 }
 
