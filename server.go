@@ -185,7 +185,7 @@ func (s *TCPServer) Start(l net.Listener) error {
 
 		netid := netIdentifier.GetAndIncrement()
 		sc := NewServerConn(netid, s, rawConn)
-		sc.SetName(sc.GetRemoteAddress().String())
+		sc.SetName(sc.rawConn.RemoteAddr().String())
 
 		s.mu.Lock()
 		if s.sched != nil {
@@ -204,7 +204,7 @@ func (s *TCPServer) Start(l net.Listener) error {
 		holmes.Info("accepted client %s, id %d, total %d\n", sc.GetName(), netid, s.conns.Size())
 		s.conns.RLock()
 		for _, c := range s.conns.m {
-			holmes.Info("client %s %t\n", c.GetName(), c.IsRunning())
+			holmes.Info("client %s\n", c.GetName())
 		}
 		s.conns.RUnlock()
 	} // for loop
@@ -225,15 +225,16 @@ func (s *TCPServer) Stop() {
 	}
 
 	// close all connections
-	conns := map[int64]Connection{}
+	conns := map[int64]*ServerConn{}
 	s.conns.RLock()
 	for k, v := range s.conns.m {
 		conns[k] = v
 	}
+	s.conns.Clear()
 	s.conns.RUnlock()
 
 	for _, c := range conns {
-		c.Close()
+		c.rawConn.Close()
 		holmes.Info("close client %s", c.GetName())
 	}
 
@@ -260,11 +261,9 @@ func (s *TCPServer) timeOutLoop() {
 
 		case timeout := <-s.timing.GetTimeOutChannel():
 			netid := timeout.ExtraData.(int64)
-			if conn, ok := s.conns.Get(netid); ok {
-				sc := conn.(Connection)
-				if sc.IsRunning() {
-					sc.GetTimeOutChannel() <- timeout
-				}
+			if sc, ok := s.conns.Get(netid); ok {
+				// TODO(lkj) will it cause panic ?
+				sc.belong.timing.GetTimeOutChannel() <- timeout
 			} else {
 				holmes.Warn("invalid client %d", netid)
 			}

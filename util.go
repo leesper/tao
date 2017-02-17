@@ -9,42 +9,49 @@ import (
 	"unsafe"
 )
 
+// ConnMap is a safe map for server connection management.
 type ConnMap struct {
 	sync.RWMutex
-	m map[int64]interface{}
+	m map[int64]*ServerConn
 }
 
+// NewConnMap returns a new ConnMap.
 func NewConnMap() *ConnMap {
 	return &ConnMap{
-		m: make(map[int64]interface{}),
+		m: make(map[int64]*ServerConn),
 	}
 }
 
+// Clear clears all elements in map.
 func (cm *ConnMap) Clear() {
 	cm.Lock()
-	cm.m = make(map[int64]Connection)
+	cm.m = make(map[int64]*ServerConn)
 	cm.Unlock()
 }
 
-func (cm *ConnMap) Get(k int64) (Connection, bool) {
+// Get gets a server connection with specified net ID.
+func (cm *ConnMap) Get(id int64) (*ServerConn, bool) {
 	cm.RLock()
-	conn, ok := cm.m[k]
+	sc, ok := cm.m[id]
 	cm.RUnlock()
-	return conn, ok
+	return sc, ok
 }
 
-func (cm *ConnMap) Put(k int64, v Connection) {
+// Put puts a server connection with specified net ID in map.
+func (cm *ConnMap) Put(id int64, sc *ServerConn) {
 	cm.Lock()
-	cm.m[k] = v
+	cm.m[id] = sc
 	cm.Unlock()
 }
 
-func (cm *ConnMap) Remove(k int64) {
+// Remove removes a server connection with specified net ID.
+func (cm *ConnMap) Remove(id int64) {
 	cm.Lock()
-	delete(cm.m, k)
+	delete(cm.m, id)
 	cm.Unlock()
 }
 
+// Size returns map size.
 func (cm *ConnMap) Size() int {
 	cm.RLock()
 	size := len(cm.m)
@@ -52,10 +59,12 @@ func (cm *ConnMap) Size() int {
 	return size
 }
 
+// IsEmpty tells whether ConnMap is empty.
 func (cm *ConnMap) IsEmpty() bool {
 	return cm.Size() <= 0
 }
 
+// Hashable is a interface for hashable object.
 type Hashable interface {
 	HashCode() int32
 }

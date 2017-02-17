@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/leesper/holmes"
 )
@@ -17,7 +18,7 @@ const (
 
 // Handler takes the responsibility to handle incoming messages.
 type Handler interface {
-	Handle(context.Context, Connection)
+	Handle(context.Context, interface{})
 }
 
 // HandlerFunc serves as an adapter to allow the use of ordinary functions as handlers.
@@ -54,7 +55,7 @@ func init() {
 // If no handler function provided, the message will not be handled unless you
 // set a default one by calling SetOnMessageCallback.
 // If Register being called twice on one msgType, it will panics.
-func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(context.Context, Connection)) {
+func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(context.Context, interface{})) {
 	if _, ok := messageRegistry[msgType]; ok {
 		panic(fmt.Sprintf("trying to register message %d twice", msgType))
 	}
@@ -126,16 +127,21 @@ func DeserializeHeartBeat(data []byte) (message Message, err error) {
 }
 
 // HandleHeartBeat updates connection heart beat timestamp.
-func HandleHeartBeat(ctx context.Context, conn Connection) {
+func HandleHeartBeat(ctx context.Context, c interface{}) {
 	if msg, ok := MessageFromContext(ctx); ok {
-		conn.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
+		switch c := c.(type) {
+		case *ServerConn:
+			c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
+		case *ClientConn:
+			c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
+		}
 	}
 }
 
 // Codec is the interface for message coder and decoder.
 // Application programmer can define a custom codec themselves.
 type Codec interface {
-	Decode(Connection) (Message, error)
+	Decode(net.Conn) (Message, error)
 	Encode(Message) ([]byte, error)
 }
 
@@ -144,13 +150,13 @@ type Codec interface {
 type TypeLengthValueCodec struct{}
 
 // Decode decodes the bytes data into Message
-func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
+func (codec TypeLengthValueCodec) Decode(raw net.Conn) (Message, error) {
 	byteChan := make(chan []byte)
 	errorChan := make(chan error)
 
 	go func(bc chan []byte, ec chan error) {
 		typeData := make([]byte, MessageTypeBytes)
-		_, err := io.ReadFull(c.GetRawConn(), typeData)
+		_, err := io.ReadFull(raw, typeData)
 		if err != nil {
 			ec <- err
 			close(bc)
@@ -163,13 +169,14 @@ func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
 	var typeBytes []byte
 
 	select {
-	case <-c.GetCloseChannel():
-		return nil, ErrServerClose
-
 	case err := <-errorChan:
 		return nil, err
 
 	case typeBytes = <-byteChan:
+		if typeBytes == nil {
+			holmes.Warn("read type bytes nil")
+			return nil, ErrBadData
+		}
 		typeBuf := bytes.NewReader(typeBytes)
 		var msgType int32
 		if err := binary.Read(typeBuf, binary.LittleEndian, &msgType); err != nil {
@@ -177,7 +184,7 @@ func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
 		}
 
 		lengthBytes := make([]byte, MessageLenBytes)
-		_, err := io.ReadFull(c.GetRawConn(), lengthBytes)
+		_, err := io.ReadFull(raw, lengthBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +200,7 @@ func (codec TypeLengthValueCodec) Decode(c Connection) (Message, error) {
 
 		// read application data
 		msgBytes := make([]byte, msgLen)
-		_, err = io.ReadFull(c.GetRawConn(), msgBytes)
+		_, err = io.ReadFull(raw, msgBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -223,9 +230,11 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
 
 type ctxKey int
 
-const msgCtxKey ctxKey = 0
-const srvCtxKey ctxKey = 1
-const cliCtxKey cliKey = 2
+const (
+	msgCtxKey ctxKey = 0
+	srvCtxKey ctxKey = 1
+	cliCtxKey ctxKey = 2
+)
 
 // NewContextWithMessage returns a new context that carries message.
 func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
