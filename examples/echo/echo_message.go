@@ -1,35 +1,42 @@
 package echo
 
 import (
-  "github.com/leesper/tao"
-  "github.com/leesper/holmes"
+	"context"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
 )
 
-type EchoMessage struct {
-  Message string
+// Message defines the echo message.
+type Message struct {
+	Content string
 }
 
-func (em EchoMessage) Serialize() ([]byte, error) {
-  return []byte(em.Message), nil
+// Serialize serializes Message into bytes.
+func (em Message) Serialize() ([]byte, error) {
+	return []byte(em.Content), nil
 }
 
-func (em EchoMessage) MessageNumber() int32 {
-  return 1
+// MessageNumber returns message type number.
+func (em Message) MessageNumber() int32 {
+	return 1
 }
 
-func DeserializeEchoMessage(data []byte) (message tao.Message, err error) {
-  if data == nil {
-    return nil, tao.ErrorNilData
-  }
-  msg := string(data)
-  echo := EchoMessage{
-    Message: msg,
-  }
-  return echo, nil
+// DeserializeMessage deserializes bytes into Message.
+func DeserializeMessage(data []byte) (message tao.Message, err error) {
+	if data == nil {
+		return nil, tao.ErrNilData
+	}
+	msg := string(data)
+	echo := Message{
+		Content: msg,
+	}
+	return echo, nil
 }
 
-func ProcessEchoMessage(ctx tao.Context, conn tao.Connection) {
-  echoMessage := ctx.Message().(EchoMessage)
-  holmes.Info("Receving message %s\n", echoMessage.Message)
-  conn.Write(ctx.Message())
+// ProcessMessage process the logic of echo message.
+func ProcessMessage(ctx context.Context, conn tao.WriteCloser) {
+	msg := ctx.Value(tao.MessageCtx).(Message)
+	holmes.Info("receving message %s\n", msg.Content)
+	conn.Write(msg)
 }

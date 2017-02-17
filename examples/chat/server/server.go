@@ -17,14 +17,14 @@ type ChatServer struct {
 
 // NewChatServer returns a ChatServer.
 func NewChatServer() *ChatServer {
-	onConnectOption := tao.OnConnect(func(conn tao.WriteCloser) bool {
+	onConnectOption := tao.OnConnectOption(func(conn tao.WriteCloser) bool {
 		holmes.Info("%s", "On connect")
 		return true
 	})
-	onErrorOption := tao.OnError(func(conn tao.WriteCloser) {
+	onErrorOption := tao.OnErrorOption(func(conn tao.WriteCloser) {
 		holmes.Info("%s", "On error")
 	})
-	onCloseOption := tao.OnClose(func(conn tao.WriteCloser) {
+	onCloseOption := tao.OnCloseOption(func(conn tao.WriteCloser) {
 		holmes.Info("%s", "Closing chat client")
 	})
 	return &ChatServer{

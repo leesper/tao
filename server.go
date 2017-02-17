@@ -35,48 +35,48 @@ type options struct {
 // ServerOption sets server options.
 type ServerOption func(*options)
 
-// CustomCodec returns a ServerOption that will apply a custom Codec.
-func CustomCodec(codec Codec) ServerOption {
+// CustomCodecOption returns a ServerOption that will apply a custom Codec.
+func CustomCodecOption(codec Codec) ServerOption {
 	return func(o *options) {
 		o.codec = codec
 	}
 }
 
-// TLSCreds returns a ServerOption that will set TLS credentials for server
+// TLSCredsOption returns a ServerOption that will set TLS credentials for server
 // connections.
-func TLSCreds(config *tls.Config) ServerOption {
+func TLSCredsOption(config *tls.Config) ServerOption {
 	return func(o *options) {
 		o.tlsCfg = config
 	}
 }
 
-// OnConnect returns a ServerOption that will set callback to call when new
+// OnConnectOption returns a ServerOption that will set callback to call when new
 // client connected.
-func OnConnect(cb func(WriteCloser) bool) ServerOption {
+func OnConnectOption(cb func(WriteCloser) bool) ServerOption {
 	return func(o *options) {
 		o.onConnect = cb
 	}
 }
 
-// OnMessage returns a ServerOption that will set callback to call when new
+// OnMessageOption returns a ServerOption that will set callback to call when new
 // message arrived.
-func OnMessage(cb func(Message, WriteCloser)) ServerOption {
+func OnMessageOption(cb func(Message, WriteCloser)) ServerOption {
 	return func(o *options) {
 		o.onMessage = cb
 	}
 }
 
-// OnClose returns a ServerOption that will set callback to call when client
+// OnCloseOption returns a ServerOption that will set callback to call when client
 // closed.
-func OnClose(cb func(WriteCloser)) ServerOption {
+func OnCloseOption(cb func(WriteCloser)) ServerOption {
 	return func(o *options) {
 		o.onClose = cb
 	}
 }
 
-// OnError returns a ServerOption that will set callback to call when error
+// OnErrorOption returns a ServerOption that will set callback to call when error
 // occurs.
-func OnError(cb func(WriteCloser)) ServerOption {
+func OnErrorOption(cb func(WriteCloser)) ServerOption {
 	return func(o *options) {
 		o.onError = cb
 	}

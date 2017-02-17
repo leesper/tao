@@ -1,54 +1,56 @@
 package main
 
 import (
-  "time"
-  "fmt"
-  "net"
-  "github.com/leesper/tao"
-  "github.com/leesper/tao/examples/echo"
-  "github.com/leesper/holmes"
+	"fmt"
+	"net"
+	"time"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
+	"github.com/leesper/tao/examples/echo"
 )
 
 func main() {
-  tao.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage, nil)
-  c, err := net.Dial("tcp", "127.0.0.1:18342")
-  if err != nil {
-    holmes.Fatal("%v", err)
-  }
+	tao.Register(echo.Message{}.MessageNumber(), echo.DeserializeMessage, nil)
 
-  tcpConnection := tao.NewClientConnection(0, false, c, nil)
+	c, err := net.Dial("tcp", "127.0.0.1:12345")
+	if err != nil {
+		holmes.Fatal("%v", err)
+	}
 
-  tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    holmes.Info("%v", "On connect")
-    return true
-  })
+	onConnect := tao.OnConnectOption(func(conn tao.WriteCloser) bool {
+		holmes.Info("%v", "On connect")
+		return true
+	})
 
-  tcpConnection.SetOnErrorCallback(func() {
-    holmes.Info("%v", "On error")
-  })
+	onError := tao.OnErrorOption(func(conn tao.WriteCloser) {
+		holmes.Info("%v", "On error")
+	})
 
-  tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    holmes.Info("%v", "On close")
-  })
+	onClose := tao.OnCloseOption(func(conn tao.WriteCloser) {
+		holmes.Info("%v", "On close")
+	})
 
-  tcpConnection.SetOnMessageCallback(func(msg tao.Message, c tao.Connection) {
-    echoMessage := msg.(echo.EchoMessage)
-    fmt.Printf("%s\n", echoMessage.Message)
-  })
+	onMessage := tao.OnMessageOption(func(msg tao.Message, conn tao.WriteCloser) {
+		echo := msg.(echo.Message)
+		fmt.Printf("%s\n", echo.Content)
+	})
 
-  echoMessage := echo.EchoMessage{
-    Message: "hello, world",
-  }
+	conn := tao.NewClientConn(0, c, onConnect, onError, onClose, onMessage)
 
-  tcpConnection.Start()
+	echo := echo.Message{
+		Content: "hello, world",
+	}
 
-  for i := 0; i < 100; i++ {
-    time.Sleep(600 * time.Millisecond)
-    err := tcpConnection.Write(echoMessage)
-    if err != nil {
-      holmes.Error("%v", err)
-    }
-  }
-  time.Sleep(time.Second)
-  tcpConnection.Close()
+	conn.Start()
+
+	for i := 0; i < 10; i++ {
+		time.Sleep(60 * time.Millisecond)
+		err := conn.Write(echo)
+		if err != nil {
+			holmes.Error("%v", err)
+		}
+	}
+	holmes.Debug("hello")
+	conn.Close()
 }

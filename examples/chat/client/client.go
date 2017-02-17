@@ -19,21 +19,21 @@ func main() {
 		holmes.Fatal("%v", err)
 	}
 
-	onConnect := tao.OnConnect(func(c tao.WriteCloser) bool {
+	onConnect := tao.OnConnectOption(func(c tao.WriteCloser) bool {
 		holmes.Info("%s", "On connect")
 		return true
 	})
 
-	onError := tao.OnError(func(c tao.WriteCloser) {
+	onError := tao.OnErrorOption(func(c tao.WriteCloser) {
 		holmes.Info("%s", "On error")
 	})
 
-	onClose := tao.OnClose(func(c tao.WriteCloser) {
+	onClose := tao.OnCloseOption(func(c tao.WriteCloser) {
 		holmes.Info("On close")
 		os.Exit(0)
 	})
 
-	onMessage := tao.OnMessage(func(msg tao.Message, c tao.WriteCloser) {
+	onMessage := tao.OnMessageOption(func(msg tao.Message, c tao.WriteCloser) {
 		fmt.Print(msg.(chat.Message).Content)
 	})
 
