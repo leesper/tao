@@ -52,7 +52,7 @@ func TLSCreds(config *tls.Config) ServerOption {
 
 // OnConnect returns a ServerOption that will set callback to call when new
 // client connected.
-func OnConnect(cb func(interface{}) bool) ServerOption {
+func OnConnect(cb func(WriteCloser) bool) ServerOption {
 	return func(o *options) {
 		o.onConnect = cb
 	}
@@ -60,7 +60,7 @@ func OnConnect(cb func(interface{}) bool) ServerOption {
 
 // OnMessage returns a ServerOption that will set callback to call when new
 // message arrived.
-func OnMessage(cb func(Message, interface{})) ServerOption {
+func OnMessage(cb func(Message, WriteCloser)) ServerOption {
 	return func(o *options) {
 		o.onMessage = cb
 	}
@@ -68,7 +68,7 @@ func OnMessage(cb func(Message, interface{})) ServerOption {
 
 // OnClose returns a ServerOption that will set callback to call when client
 // closed.
-func OnClose(cb func(interface{})) ServerOption {
+func OnClose(cb func(WriteCloser)) ServerOption {
 	return func(o *options) {
 		o.onClose = cb
 	}
@@ -76,14 +76,14 @@ func OnClose(cb func(interface{})) ServerOption {
 
 // OnError returns a ServerOption that will set callback to call when error
 // occurs.
-func OnError(cb func(interface{})) ServerOption {
+func OnError(cb func(WriteCloser)) ServerOption {
 	return func(o *options) {
 		o.onError = cb
 	}
 }
 
-// TCPServer is a server to serve TCP requests.
-type TCPServer struct {
+// Server  is a server to serve TCP requests.
+type Server struct {
 	opts   options
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -98,9 +98,9 @@ type TCPServer struct {
 	sched  onScheduleFunc
 }
 
-// NewTCPServer returns a new TCP server which has not started
+// NewServer returns a new TCP server which has not started
 // to serve requests yet.
-func NewTCPServer(opt ...ServerOption) *TCPServer {
+func NewServer(opt ...ServerOption) *Server {
 	var opts options
 	for _, o := range opt {
 		o(&opts)
@@ -109,21 +109,35 @@ func NewTCPServer(opt ...ServerOption) *TCPServer {
 		opts.codec = TypeLengthValueCodec{}
 	}
 
-	s := &TCPServer{
+	s := &Server{
 		opts:  opts,
 		conns: NewConnMap(),
 		wg:    &sync.WaitGroup{},
+		lis:   make(map[net.Listener]bool),
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.timing = NewTimingWheel(s.ctx)
 	return s
 }
 
+// Broadcast broadcasts message to all server connections managed.
+func (s *Server) Broadcast(msg Message) {
+	var err error
+	s.conns.RLock()
+	defer s.conns.RUnlock()
+	for _, c := range s.conns.m {
+		err = c.Write(msg)
+		if err != nil {
+			holmes.Error("broadcast error %v", err)
+		}
+	}
+}
+
 // Start starts the TCP server, accepting new clients and creating service
 // go-routine for each. The service go-routines read messages and then call
 // the registered handlers to handle them. Start returns when failed with fatal
 // errors, the listener willl be closed when returned.
-func (s *TCPServer) Start(l net.Listener) error {
+func (s *Server) Start(l net.Listener) error {
 	s.mu.Lock()
 	if s.lis == nil {
 		s.mu.Unlock()
@@ -212,7 +226,7 @@ func (s *TCPServer) Start(l net.Listener) error {
 
 // Stop gracefully closes the server, it blocked until all connections
 // are closed and all go-routines are exited.
-func (s *TCPServer) Stop() {
+func (s *Server) Stop() {
 	// immediately stop accepting new clients
 	s.mu.Lock()
 	listeners := s.lis
@@ -251,7 +265,7 @@ func (s *TCPServer) Stop() {
 // Retrieve the extra data(i.e. net id), and then redispatch timeout callbacks
 // to corresponding client connection, this prevents one client from running
 // callbacks of other clients
-func (s *TCPServer) timeOutLoop() {
+func (s *Server) timeOutLoop() {
 	defer s.wg.Done()
 
 	for {
@@ -260,12 +274,12 @@ func (s *TCPServer) timeOutLoop() {
 			return
 
 		case timeout := <-s.timing.GetTimeOutChannel():
-			netid := timeout.ExtraData.(int64)
-			if sc, ok := s.conns.Get(netid); ok {
+			netID := timeout.Ctx.Value(NetIDCtx).(int64)
+			if sc, ok := s.conns.Get(netID); ok {
 				// TODO(lkj) will it cause panic ?
 				sc.belong.timing.GetTimeOutChannel() <- timeout
 			} else {
-				holmes.Warn("invalid client %d", netid)
+				holmes.Warn("invalid client %d", netID)
 			}
 		}
 	}

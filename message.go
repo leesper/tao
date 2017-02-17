@@ -22,10 +22,10 @@ type Handler interface {
 }
 
 // HandlerFunc serves as an adapter to allow the use of ordinary functions as handlers.
-type HandlerFunc func(context.Context, interface{})
+type HandlerFunc func(context.Context, WriteCloser)
 
 // Handle calls f(ctx, c)
-func (f HandlerFunc) Handle(ctx context.Context, c interface{}) {
+func (f HandlerFunc) Handle(ctx context.Context, c WriteCloser) {
 	f(ctx, c)
 }
 
@@ -55,7 +55,7 @@ func init() {
 // If no handler function provided, the message will not be handled unless you
 // set a default one by calling SetOnMessageCallback.
 // If Register being called twice on one msgType, it will panics.
-func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(context.Context, interface{})) {
+func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(context.Context, WriteCloser)) {
 	if _, ok := messageRegistry[msgType]; ok {
 		panic(fmt.Sprintf("trying to register message %d twice", msgType))
 	}
@@ -228,21 +228,27 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
 	return packet, nil
 }
 
-type ctxKey int
+// ContextKey is the key type for putting context-related data.
+type ContextKey int
 
 const (
-	msgCtxKey ctxKey = 0
-	srvCtxKey ctxKey = 1
-	cliCtxKey ctxKey = 2
+	// MessageCtx is the key for Message context.
+	MessageCtx ContextKey = 0
+	// ServerCtx is the key for *TCPServer context.
+	ServerCtx ContextKey = 1
+	// ClientCtx is the key for
+	ClientCtx ContextKey = 2
+	// NetIDCtx is the key for net ID context.
+	NetIDCtx ContextKey = 3
 )
 
 // NewContextWithMessage returns a new context that carries message.
 func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
-	return context.WithValue(ctx, msgCtxKey, msg)
+	return context.WithValue(ctx, MessageCtx, msg)
 }
 
 // MessageFromContext extracts a message from a context.
 func MessageFromContext(ctx context.Context) (Message, bool) {
-	msg, ok := ctx.Value(msgCtxKey).(Message)
+	msg, ok := ctx.Value(MessageCtx).(Message)
 	return msg, ok
 }
