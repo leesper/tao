@@ -153,7 +153,7 @@ func (tw *TimingWheel) getExpired() []*timerType {
 		timer := heap.Pop(&tw.timers).(*timerType)
 		delta := float64(timer.expiration.UnixNano()-now.UnixNano()) / 1e9
 		if delta <= -1.0 {
-			holmes.Warn("Delta %f", delta)
+			holmes.Warnf("delta %f\n", delta)
 		}
 		if -1.0 < delta && delta <= 0.0 {
 			expired = append(expired, timer)

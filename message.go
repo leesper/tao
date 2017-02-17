@@ -174,7 +174,7 @@ func (codec TypeLengthValueCodec) Decode(raw net.Conn) (Message, error) {
 
 	case typeBytes = <-byteChan:
 		if typeBytes == nil {
-			holmes.Warn("read type bytes nil")
+			holmes.Warnln("read type bytes nil")
 			return nil, ErrBadData
 		}
 		typeBuf := bytes.NewReader(typeBytes)
@@ -194,7 +194,7 @@ func (codec TypeLengthValueCodec) Decode(raw net.Conn) (Message, error) {
 			return nil, err
 		}
 		if msgLen > MessageMaxBytes {
-			holmes.Error("message(type %d) has bytes(%d) beyond max %d", msgType, msgLen, MessageMaxBytes)
+			holmes.Errorf("message(type %d) has bytes(%d) beyond max %d\n", msgType, msgLen, MessageMaxBytes)
 			return nil, ErrBadData
 		}
 

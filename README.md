@@ -150,9 +150,3 @@ func main() {
   chatServer.Start()
 }
 ```
-
-
-
-### TODO list:    
-1.  [ ] Add more use-case examples;    
-2.  [ ] Add logger support;

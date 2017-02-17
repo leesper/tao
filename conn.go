@@ -61,7 +61,7 @@ func NewServerConn(id int64, s *Server, c net.Conn) *ServerConn {
 		wg:        &sync.WaitGroup{},
 		sendCh:    make(chan []byte, 1024),
 		handlerCh: make(chan MessageHandler, 1024),
-		timerCh:   make(chan *OnTimeOut),
+		timerCh:   make(chan *OnTimeOut, 1024),
 		heart:     time.Now().UnixNano(),
 	}
 	sc.ctx, sc.cancel = context.WithCancel(context.WithValue(s.ctx, ServerCtx, s))
@@ -122,7 +122,7 @@ func (sc *ServerConn) GetContextValue(k ContextKey) interface{} {
 // Start starts the server connection, creating go-routines for reading,
 // writing and handlng.
 func (sc *ServerConn) Start() {
-	holmes.Info("conn start, <%v -> %v>", sc.rawConn.LocalAddr(), sc.rawConn.RemoteAddr())
+	holmes.Infof("conn start, <%v -> %v>\n", sc.rawConn.LocalAddr(), sc.rawConn.RemoteAddr())
 	onConnect := sc.belong.opts.onConnect
 	if onConnect != nil {
 		onConnect(sc)
@@ -140,28 +140,37 @@ func (sc *ServerConn) Start() {
 // go-routines are completed and returned.
 func (sc *ServerConn) Close() {
 	sc.once.Do(func() {
-		holmes.Info("conn close gracefully, <%v -> %v>", sc.rawConn.LocalAddr(), sc.rawConn.RemoteAddr())
+		holmes.Infof("conn close gracefully, <%v -> %v>\n", sc.rawConn.LocalAddr(), sc.rawConn.RemoteAddr())
+
+		// callback on close
 		onClose := sc.belong.opts.onClose
 		if onClose != nil {
 			onClose(sc)
 		}
 
-		close(sc.sendCh)
-		close(sc.handlerCh)
-		// TODO(lkj) will this cause a panic ?
-		close(sc.timerCh)
+		// remove connection from server
+		sc.belong.conns.Remove(sc.netid)
+		addTotalConn(-1)
 
-		// wait for go-routines holding readLoop, writeLoop and handleServerLoop to finish
+		// tell go-routines running readLoop, writeLoop and handleLoop to finish
 		sc.mu.Lock()
 		sc.cancel()
 		pending := sc.pending
 		sc.pending = nil
 		sc.mu.Unlock()
-		sc.wg.Wait()
 
+		// clean up pending timers
 		for _, id := range pending {
 			sc.CancelTimer(id)
 		}
+
+		// block until all go-routines above exited.
+		sc.wg.Wait()
+
+		// close all channels
+		close(sc.sendCh)
+		close(sc.handlerCh)
+		close(sc.timerCh)
 
 		if tc, ok := sc.rawConn.(*net.TCPConn); ok {
 			// avoid time-wait state
@@ -169,11 +178,9 @@ func (sc *ServerConn) Close() {
 		}
 		sc.rawConn.Close()
 
-		sc.belong.conns.Remove(sc.netid)
-		addTotalConn(-1)
-		holmes.Info("HOW MANY CONNECTIONS DO I HAVE: %d", sc.belong.conns.Size())
-
+		// tell server I'm done.
 		sc.belong.wg.Done()
+		holmes.Infof("HOW MANY CONNECTIONS DO I HAVE: %d\n", sc.belong.conns.Size())
 	})
 }
 
@@ -336,7 +343,7 @@ func (cc *ClientConn) GetContextValue(k ContextKey) interface{} {
 // Start starts the client connection, creating go-routines for reading,
 // writing and handlng.
 func (cc *ClientConn) Start() {
-	holmes.Info("conn start, <%v -> %v>", cc.rawConn.LocalAddr(), cc.rawConn.RemoteAddr())
+	holmes.Infof("conn start, <%v -> %v>\n", cc.rawConn.LocalAddr(), cc.rawConn.RemoteAddr())
 	onConnect := cc.opts.onConnect
 	if onConnect != nil {
 		onConnect(cc)
@@ -354,25 +361,32 @@ func (cc *ClientConn) Start() {
 // go-routines are completed and returned.
 func (cc *ClientConn) Close() {
 	cc.once.Do(func() {
-		holmes.Info("conn close gracefully, <%v -> %v>", cc.rawConn.LocalAddr(), cc.rawConn.RemoteAddr())
+		holmes.Infof("conn close gracefully, <%v -> %v>\n", cc.rawConn.LocalAddr(), cc.rawConn.RemoteAddr())
+
+		// callback on close
 		onClose := cc.opts.onClose
 		if onClose != nil {
 			onClose(cc)
 		}
 
-		close(cc.sendCh)
-		close(cc.handlerCh)
-		cc.timing.Stop()
-
+		// tell go-routines running readLoop, writeLoop and handleLoop to finish
 		cc.mu.Lock()
 		cc.cancel()
+		cc.pending = nil
 		cc.mu.Unlock()
 
-		// wait for all loops to finish
+		// stop timer
+		cc.timing.Stop()
+
+		// block until all go-routines above exited
 		cc.wg.Wait()
+
+		// close all channels
+		close(cc.sendCh)
+		close(cc.handlerCh)
+
 		cc.rawConn.Close()
 	})
-
 }
 
 // deprecated
@@ -382,12 +396,12 @@ func (cc *ClientConn) reconnect() {
 	if cc.opts.tlsCfg != nil {
 		c, err = tls.Dial("tcp", cc.addr, cc.opts.tlsCfg)
 		if err != nil {
-			holmes.Fatal("tls dial error", err)
+			holmes.Fatalln("tls dial error", err)
 		}
 	} else {
 		c, err = net.Dial("tcp", cc.addr)
 		if err != nil {
-			holmes.Fatal("net dial error", err)
+			holmes.Fatalln("net dial error", err)
 		}
 	}
 	cc = newClientConnWithOptions(cc.netid, c, cc.opts)
@@ -485,7 +499,7 @@ func asyncWrite(c interface{}, m Message) error {
 	}
 
 	if err != nil {
-		holmes.Error("asyncWrite error %v", err)
+		holmes.Errorf("asyncWrite error %v\n", err)
 		return err
 	}
 
@@ -532,7 +546,7 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 
 	defer func() {
 		if p := recover(); p != nil {
-			holmes.Error("panics: %v", p)
+			holmes.Errorf("panics: %v\n", p)
 		}
 		wg.Done()
 		c.Close()
@@ -547,7 +561,7 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 		default:
 			msg, err = codec.Decode(rawConn)
 			if err != nil {
-				holmes.Error("error decoding message %v", err)
+				holmes.Errorf("error decoding message %v\n", err)
 				if _, ok := err.(ErrUndefined); ok {
 					// update heart beats
 					setHeartBeatFunc(time.Now().UnixNano())
@@ -559,10 +573,10 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 			handler := GetHandlerFunc(msg.MessageNumber())
 			if handler == nil {
 				if onMessage != nil {
-					holmes.Info("message %d call onMessage()", msg.MessageNumber())
+					holmes.Infof("message %d call onMessage()\n", msg.MessageNumber())
 					onMessage(msg, c.(WriteCloser))
 				} else {
-					holmes.Warn("no handler or onMessage() found for message %d", msg.MessageNumber())
+					holmes.Warnf("no handler or onMessage() found for message %d\n", msg.MessageNumber())
 				}
 				continue
 			}
@@ -598,13 +612,13 @@ func writeLoop(c WriteCloser, wg *sync.WaitGroup) {
 
 	defer func() {
 		if p := recover(); p != nil {
-			holmes.Error("panics: %v", p)
+			holmes.Errorf("panics: %v\n", p)
 		}
 		// drain all pending messages before exit
 		for pkt = range sendCh {
 			if pkt != nil {
 				if _, err = rawConn.Write(pkt); err != nil {
-					holmes.Error("error writing data %v", err)
+					holmes.Errorf("error writing data %v\n", err)
 				}
 			}
 		}
@@ -621,7 +635,7 @@ func writeLoop(c WriteCloser, wg *sync.WaitGroup) {
 		case pkt = <-sendCh:
 			if pkt != nil {
 				if _, err = rawConn.Write(pkt); err != nil {
-					holmes.Error("error writing data %v", err)
+					holmes.Errorf("error writing data %v\n", err)
 					return
 				}
 			}
@@ -645,7 +659,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 	case *ServerConn:
 		cDone = c.ctx.Done()
 		sDone = c.belong.ctx.Done()
-		timerCh = c.belong.timing.GetTimeOutChannel()
+		timerCh = c.timerCh
 		handlerCh = c.handlerCh
 		netID = c.netid
 		ctx = c.ctx
@@ -661,7 +675,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 
 	defer func() {
 		if p := recover(); p != nil {
-			holmes.Error("panics: %v", p)
+			holmes.Errorf("panics: %v\n", p)
 		}
 		wg.Done()
 		c.Close()
@@ -689,7 +703,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 			if timeout != nil {
 				timeoutNetID := timeout.Ctx.Value(NetIDCtx).(int64)
 				if timeoutNetID != netID {
-					holmes.Error("timeout net %d, conn net %d, mismatched!", timeoutNetID, netID)
+					holmes.Errorf("timeout net %d, conn net %d, mismatched!\n", timeoutNetID, netID)
 				}
 				if askForWorker {
 					WorkerPoolInstance().Put(netID, func() {

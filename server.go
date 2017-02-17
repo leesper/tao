@@ -120,6 +120,11 @@ func NewServer(opt ...ServerOption) *Server {
 	return s
 }
 
+// ConnsMap returns connections managed.
+func (s *Server) ConnsMap() *ConnMap {
+	return s.conns
+}
+
 // Broadcast broadcasts message to all server connections managed.
 func (s *Server) Broadcast(msg Message) {
 	var err error
@@ -128,7 +133,7 @@ func (s *Server) Broadcast(msg Message) {
 	for _, c := range s.conns.m {
 		err = c.Write(msg)
 		if err != nil {
-			holmes.Error("broadcast error %v", err)
+			holmes.Errorf("broadcast error %v\n", err)
 		}
 	}
 }
@@ -156,7 +161,7 @@ func (s *Server) Start(l net.Listener) error {
 		s.mu.Unlock()
 	}()
 
-	holmes.Info("server start, net %s addr %s", l.Addr().Network(), l.Addr().String())
+	holmes.Infof("server start, net %s addr %s\n", l.Addr().Network(), l.Addr().String())
 
 	s.wg.Add(1)
 	go s.timeOutLoop()
@@ -174,7 +179,7 @@ func (s *Server) Start(l net.Listener) error {
 				if max := 1 * time.Second; tempDelay >= max {
 					tempDelay = max
 				}
-				holmes.Error("accept error %v, retrying in %d", err, tempDelay)
+				holmes.Errorf("accept error %v, retrying in %d\n", err, tempDelay)
 				select {
 				case <-time.After(tempDelay):
 				case <-s.ctx.Done():
@@ -188,7 +193,7 @@ func (s *Server) Start(l net.Listener) error {
 		// how many connections do we have ?
 		sz := s.conns.Size()
 		if sz >= MaxConnections {
-			holmes.Warn("max connections size %d, refuse", sz)
+			holmes.Warnf("max connections size %d, refuse\n", sz)
 			rawConn.Close()
 			continue
 		}
@@ -215,10 +220,10 @@ func (s *Server) Start(l net.Listener) error {
 			sc.Start()
 		}()
 
-		holmes.Info("accepted client %s, id %d, total %d\n", sc.GetName(), netid, s.conns.Size())
+		holmes.Infof("accepted client %s, id %d, total %d\n", sc.GetName(), netid, s.conns.Size())
 		s.conns.RLock()
 		for _, c := range s.conns.m {
-			holmes.Info("client %s\n", c.GetName())
+			holmes.Infof("client %s\n", c.GetName())
 		}
 		s.conns.RUnlock()
 	} // for loop
@@ -235,7 +240,7 @@ func (s *Server) Stop() {
 
 	for l := range listeners {
 		l.Close()
-		holmes.Info("stop accepting at address %s", l.Addr().String())
+		holmes.Infof("stop accepting at address %s\n", l.Addr().String())
 	}
 
 	// close all connections
@@ -249,7 +254,7 @@ func (s *Server) Stop() {
 
 	for _, c := range conns {
 		c.rawConn.Close()
-		holmes.Info("close client %s", c.GetName())
+		holmes.Infof("close client %s\n", c.GetName())
 	}
 
 	s.mu.Lock()
@@ -258,7 +263,7 @@ func (s *Server) Stop() {
 
 	s.wg.Wait()
 
-	holmes.Info("server stopped gracefully, bye.")
+	holmes.Infoln("server stopped gracefully, bye.")
 	os.Exit(0)
 }
 
@@ -276,10 +281,9 @@ func (s *Server) timeOutLoop() {
 		case timeout := <-s.timing.GetTimeOutChannel():
 			netID := timeout.Ctx.Value(NetIDCtx).(int64)
 			if sc, ok := s.conns.Get(netID); ok {
-				// TODO(lkj) will it cause panic ?
-				sc.belong.timing.GetTimeOutChannel() <- timeout
+				sc.timerCh <- timeout
 			} else {
-				holmes.Warn("invalid client %d", netID)
+				holmes.Warnf("invalid client %d\n", netID)
 			}
 		}
 	}
