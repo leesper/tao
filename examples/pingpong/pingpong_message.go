@@ -1,37 +1,37 @@
 package pingpong
 
-import (
-  "errors"
-  "github.com/leesper/tao"
-)
+import "github.com/leesper/tao"
 
 const (
-  PINGPONG_MESSAGE int32 = 1
+	// PingPontMessage defines message number.
+	PingPontMessage int32 = 1
 )
 
-var ErrorNilData error = errors.New("Nil data")
-
-type PingPongMessage struct {
-  Info string
+// Message defines message format.
+type Message struct {
+	Info string
 }
 
-func (pp PingPongMessage) MessageNumber() int32 {
-  return PINGPONG_MESSAGE
+// MessageNumber returns the message number.
+func (pp Message) MessageNumber() int32 {
+	return PingPontMessage
 }
 
-func (pp PingPongMessage) Serialize() ([]byte, error) {
-  return []byte(pp.Info), nil
+// Serialize serializes Message into bytes.
+func (pp Message) Serialize() ([]byte, error) {
+	return []byte(pp.Info), nil
 }
 
-func DeserializePingPongMessage(data []byte) (message tao.Message, err error) {
-  if data == nil {
-    return nil, ErrorNilData
-  }
-  info := string(data)
-  msg := PingPongMessage{
-    Info: info,
-  }
-  return msg, nil
+// DeserializeMessage deserializes bytes into Message.
+func DeserializeMessage(data []byte) (message tao.Message, err error) {
+	if data == nil {
+		return nil, tao.ErrNilData
+	}
+	info := string(data)
+	msg := Message{
+		Info: info,
+	}
+	return msg, nil
 }
 
 // func ProcessPingPongMessage(ctx tao.Context, conn tao.Connection) {

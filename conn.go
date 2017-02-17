@@ -531,7 +531,6 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 	}
 
 	defer func() {
-		holmes.Debug("defer func")
 		if p := recover(); p != nil {
 			holmes.Error("panics: %v", p)
 		}
