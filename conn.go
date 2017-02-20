@@ -64,10 +64,16 @@ func NewServerConn(id int64, s *Server, c net.Conn) *ServerConn {
 		timerCh:   make(chan *OnTimeOut, 1024),
 		heart:     time.Now().UnixNano(),
 	}
-	sc.ctx, sc.cancel = context.WithCancel(context.WithValue(s.ctx, ServerCtx, s))
+	sc.ctx, sc.cancel = context.WithCancel(context.WithValue(s.ctx, serverCtx, s))
 	sc.name = c.RemoteAddr().String()
 	sc.pending = []int64{}
 	return sc
+}
+
+// ServerFromContext returns the server within the context.
+func ServerFromContext(ctx context.Context) (*Server, bool) {
+	server, ok := ctx.Value(serverCtx).(*Server)
+	return server, ok
 }
 
 // GetNetID returns net ID of server connection.
@@ -106,14 +112,14 @@ func (sc *ServerConn) GetHeartBeat() int64 {
 }
 
 // SetContextValue sets extra data to server connection.
-func (sc *ServerConn) SetContextValue(k ContextKey, v interface{}) {
+func (sc *ServerConn) SetContextValue(k, v interface{}) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	sc.ctx = context.WithValue(sc.ctx, k, v)
 }
 
 // GetContextValue gets extra data from server connection.
-func (sc *ServerConn) GetContextValue(k ContextKey) interface{} {
+func (sc *ServerConn) GetContextValue(k interface{}) interface{} {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	return sc.ctx.Value(k)
@@ -327,14 +333,14 @@ func (cc *ClientConn) GetHeartBeat() int64 {
 }
 
 // SetContextValue sets extra data to client connection.
-func (cc *ClientConn) SetContextValue(k ContextKey, v interface{}) {
+func (cc *ClientConn) SetContextValue(k, v interface{}) {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	cc.ctx = context.WithValue(cc.ctx, k, v)
 }
 
 // GetContextValue gets extra data from client connection.
-func (cc *ClientConn) GetContextValue(k ContextKey) interface{} {
+func (cc *ClientConn) GetContextValue(k interface{}) interface{} {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	return cc.ctx.Value(k)
@@ -701,7 +707,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 			}
 		case timeout := <-timerCh:
 			if timeout != nil {
-				timeoutNetID := timeout.Ctx.Value(NetIDCtx).(int64)
+				timeoutNetID := timeout.Ctx.Value(netIDCtx).(int64)
 				if timeoutNetID != netID {
 					holmes.Errorf("timeout net %d, conn net %d, mismatched!\n", timeoutNetID, netID)
 				}

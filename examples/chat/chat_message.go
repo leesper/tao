@@ -41,10 +41,10 @@ func DeserializeMessage(data []byte) (message tao.Message, err error) {
 
 // ProcessMessage handles the Message logic.
 func ProcessMessage(ctx context.Context, conn tao.WriteCloser) {
-	holmes.Info("ProcessMessage")
-	s, ok := ctx.Value(tao.ServerCtx).(*tao.Server)
+	holmes.Infof("ProcessMessage")
+	s, ok := tao.ServerFromContext(ctx)
 	if ok {
-		msg, ok := ctx.Value(tao.MessageCtx).(tao.Message)
+		msg, ok := tao.MessageFromContext(ctx)
 		if ok {
 			s.Broadcast(msg)
 		}

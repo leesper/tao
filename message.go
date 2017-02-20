@@ -229,26 +229,24 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
 }
 
 // ContextKey is the key type for putting context-related data.
-type ContextKey int
+type contextKey string
 
 const (
-	// MessageCtx is the key for Message context.
-	MessageCtx ContextKey = 0
-	// ServerCtx is the key for *TCPServer context.
-	ServerCtx ContextKey = 1
-	// ClientCtx is the key for
-	ClientCtx ContextKey = 2
-	// NetIDCtx is the key for net ID context.
-	NetIDCtx ContextKey = 3
+	// messageCtx is the key for Message context.
+	messageCtx contextKey = "message"
+	// serverCtx is the key for *TCPServer context.
+	serverCtx contextKey = "server"
+	// netIDCtx is the key for net ID context.
+	netIDCtx contextKey = "netid"
 )
 
 // NewContextWithMessage returns a new context that carries message.
 func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
-	return context.WithValue(ctx, MessageCtx, msg)
+	return context.WithValue(ctx, messageCtx, msg)
 }
 
 // MessageFromContext extracts a message from a context.
 func MessageFromContext(ctx context.Context) (Message, bool) {
-	msg, ok := ctx.Value(MessageCtx).(Message)
+	msg, ok := ctx.Value(messageCtx).(Message)
 	return msg, ok
 }

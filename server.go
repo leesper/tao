@@ -297,7 +297,7 @@ func (s *Server) timeOutLoop() {
 			return
 
 		case timeout := <-s.timing.GetTimeOutChannel():
-			netID := timeout.Ctx.Value(NetIDCtx).(int64)
+			netID := timeout.Ctx.Value(netIDCtx).(int64)
 			if sc, ok := s.conns.Get(netID); ok {
 				sc.timerCh <- timeout
 			} else {
