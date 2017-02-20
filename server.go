@@ -148,6 +148,14 @@ func (s *Server) Unicast(id int64, msg Message) error {
 	return fmt.Errorf("conn %d not found", id)
 }
 
+// GetConn returns a server connection with specified ID.
+func (s *Server) GetConn(id int64) (*ServerConn, bool) {
+	s.conns.RLock()
+	defer s.conns.RUnlock()
+	sc, ok := s.conns.m[id]
+	return sc, ok
+}
+
 // Start starts the TCP server, accepting new clients and creating service
 // go-routine for each. The service go-routines read messages and then call
 // the registered handlers to handle them. Start returns when failed with fatal
