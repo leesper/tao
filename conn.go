@@ -404,7 +404,6 @@ func (cc *ClientConn) Close() {
 	})
 }
 
-// deprecated
 func (cc *ClientConn) reconnect() {
 	var c net.Conn
 	var err error
