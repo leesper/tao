@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -127,15 +128,24 @@ func (s *Server) ConnsMap() *ConnMap {
 
 // Broadcast broadcasts message to all server connections managed.
 func (s *Server) Broadcast(msg Message) {
-	var err error
 	s.conns.RLock()
 	defer s.conns.RUnlock()
 	for _, c := range s.conns.m {
-		err = c.Write(msg)
-		if err != nil {
+		if err := c.Write(msg); err != nil {
 			holmes.Errorf("broadcast error %v\n", err)
 		}
 	}
+}
+
+// Unicast unicasts message to a specified conn.
+func (s *Server) Unicast(id int64, msg Message) error {
+	s.conns.RLock()
+	defer s.conns.RUnlock()
+	c, ok := s.conns.m[id]
+	if ok {
+		return c.Write(msg)
+	}
+	return fmt.Errorf("conn %d not found", id)
 }
 
 // Start starts the TCP server, accepting new clients and creating service
