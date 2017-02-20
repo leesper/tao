@@ -31,10 +31,18 @@ type options struct {
 	onMessage onMessageFunc
 	onClose   onCloseFunc
 	onError   onErrorFunc
+	reconnect bool // for ClientConn use only
 }
 
 // ServerOption sets server options.
 type ServerOption func(*options)
+
+// ReconnectOption returns a ServerOption that will make ClientConn reconnectable.
+func ReconnectOption() ServerOption {
+	return func(o *options) {
+		o.reconnect = true
+	}
+}
 
 // CustomCodecOption returns a ServerOption that will apply a custom Codec.
 func CustomCodecOption(codec Codec) ServerOption {

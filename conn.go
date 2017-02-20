@@ -397,6 +397,10 @@ func (cc *ClientConn) Close() {
 		close(cc.handlerCh)
 
 		cc.rawConn.Close()
+
+		if cc.opts.reconnect {
+			cc.reconnect()
+		}
 	})
 }
 
