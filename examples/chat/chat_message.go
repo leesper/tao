@@ -44,9 +44,7 @@ func ProcessMessage(ctx context.Context, conn tao.WriteCloser) {
 	holmes.Infof("ProcessMessage")
 	s, ok := tao.ServerFromContext(ctx)
 	if ok {
-		msg, ok := tao.MessageFromContext(ctx)
-		if ok {
-			s.Broadcast(msg)
-		}
+		msg := tao.MessageFromContext(ctx)
+		s.Broadcast(msg)
 	}
 }

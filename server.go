@@ -93,7 +93,6 @@ type Server struct {
 	wg     *sync.WaitGroup
 	mu     sync.Mutex // guards following
 	lis    map[net.Listener]bool
-
 	// for periodically running function every duration.
 	interv time.Duration
 	sched  onScheduleFunc
@@ -124,6 +123,14 @@ func NewServer(opt ...ServerOption) *Server {
 // ConnsMap returns connections managed.
 func (s *Server) ConnsMap() *ConnMap {
 	return s.conns
+}
+
+// Sched sets a callback to invoke every duration.
+func (s *Server) Sched(dur time.Duration, sched func(time.Time, WriteCloser)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.interv = dur
+	s.sched = onScheduleFunc(sched)
 }
 
 // Broadcast broadcasts message to all server connections managed.

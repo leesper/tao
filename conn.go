@@ -242,9 +242,14 @@ func cancelTimer(timing *TimingWheel, timerID int64) {
 	}
 }
 
-// GetRemoteAddr returns the peer address of server connection.
-func (sc *ServerConn) GetRemoteAddr() net.Addr {
+// RemoteAddr returns the remote address of server connection.
+func (sc *ServerConn) RemoteAddr() net.Addr {
 	return sc.rawConn.RemoteAddr()
+}
+
+// LocalAddr returns the local address of server connection.
+func (sc *ServerConn) LocalAddr() net.Addr {
+	return sc.rawConn.LocalAddr()
 }
 
 // ClientConn represents a client connection to a TCP server.
@@ -460,9 +465,14 @@ func (cc *ClientConn) CancelTimer(timerID int64) {
 	cancelTimer(cc.timing, timerID)
 }
 
-// GetRemoteAddr returns the peer address of server connection.
-func (cc *ClientConn) GetRemoteAddr() net.Addr {
+// RemoteAddr returns the remote address of server connection.
+func (cc *ClientConn) RemoteAddr() net.Addr {
 	return cc.rawConn.RemoteAddr()
+}
+
+// LocalAddr returns the local address of server connection.
+func (cc *ClientConn) LocalAddr() net.Addr {
+	return cc.rawConn.LocalAddr()
 }
 
 func runAt(ctx context.Context, timing *TimingWheel, ts time.Time, cb func(time.Time, WriteCloser)) int64 {

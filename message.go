@@ -128,13 +128,12 @@ func DeserializeHeartBeat(data []byte) (message Message, err error) {
 
 // HandleHeartBeat updates connection heart beat timestamp.
 func HandleHeartBeat(ctx context.Context, c interface{}) {
-	if msg, ok := MessageFromContext(ctx); ok {
-		switch c := c.(type) {
-		case *ServerConn:
-			c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
-		case *ClientConn:
-			c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
-		}
+	msg := MessageFromContext(ctx)
+	switch c := c.(type) {
+	case *ServerConn:
+		c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
+	case *ClientConn:
+		c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
 	}
 }
 
@@ -246,7 +245,6 @@ func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
 }
 
 // MessageFromContext extracts a message from a context.
-func MessageFromContext(ctx context.Context) (Message, bool) {
-	msg, ok := ctx.Value(messageCtx).(Message)
-	return msg, ok
+func MessageFromContext(ctx context.Context) Message {
+	return ctx.Value(messageCtx).(Message)
 }
