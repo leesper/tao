@@ -127,7 +127,7 @@ func DeserializeHeartBeat(data []byte) (message Message, err error) {
 }
 
 // HandleHeartBeat updates connection heart beat timestamp.
-func HandleHeartBeat(ctx context.Context, c interface{}) {
+func HandleHeartBeat(ctx context.Context, c WriteCloser) {
 	msg := MessageFromContext(ctx)
 	switch c := c.(type) {
 	case *ServerConn:
@@ -239,12 +239,22 @@ const (
 	netIDCtx contextKey = "netid"
 )
 
-// NewContextWithMessage returns a new context that carries message.
+// NewContextWithMessage returns a new Context that carries message.
 func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
 	return context.WithValue(ctx, messageCtx, msg)
 }
 
-// MessageFromContext extracts a message from a context.
+// MessageFromContext extracts a message from a Context.
 func MessageFromContext(ctx context.Context) Message {
 	return ctx.Value(messageCtx).(Message)
+}
+
+// NewContextWithNetID returns a new Context that carries net ID.
+func NewContextWithNetID(ctx context.Context, netID int64) context.Context {
+	return context.WithValue(ctx, netIDCtx, netID)
+}
+
+// NetIDFromContext returns a net ID from a Context.
+func NetIDFromContext(ctx context.Context) int64 {
+	return ctx.Value(netIDCtx).(int64)
 }

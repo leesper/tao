@@ -711,11 +711,11 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 			if handler != nil {
 				if askForWorker {
 					WorkerPoolInstance().Put(netID, func() {
-						handler(NewContextWithMessage(ctx, msg), c.(WriteCloser))
+						handler(NewContextWithNetID(NewContextWithMessage(ctx, msg), netID), c)
 					})
 					addTotalHandle()
 				} else {
-					handler(NewContextWithMessage(ctx, msg), c.(WriteCloser))
+					handler(NewContextWithNetID(NewContextWithMessage(ctx, msg), netID), c)
 				}
 			}
 		case timeout := <-timerCh:
