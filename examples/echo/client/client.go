@@ -15,20 +15,20 @@ func main() {
 
 	c, err := net.Dial("tcp", "127.0.0.1:12345")
 	if err != nil {
-		holmes.Fatal("%v", err)
+		holmes.Fatalln(err)
 	}
 
 	onConnect := tao.OnConnectOption(func(conn tao.WriteCloser) bool {
-		holmes.Info("%v", "On connect")
+		holmes.Infoln("on connect")
 		return true
 	})
 
 	onError := tao.OnErrorOption(func(conn tao.WriteCloser) {
-		holmes.Info("%v", "On error")
+		holmes.Infoln("on error")
 	})
 
 	onClose := tao.OnCloseOption(func(conn tao.WriteCloser) {
-		holmes.Info("%v", "On close")
+		holmes.Infoln("on close")
 	})
 
 	onMessage := tao.OnMessageOption(func(msg tao.Message, conn tao.WriteCloser) {
@@ -48,9 +48,9 @@ func main() {
 		time.Sleep(60 * time.Millisecond)
 		err := conn.Write(echo)
 		if err != nil {
-			holmes.Error("%v", err)
+			holmes.Errorln(err)
 		}
 	}
-	holmes.Debug("hello")
+	holmes.Debugln("hello")
 	conn.Close()
 }

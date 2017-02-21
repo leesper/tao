@@ -36,7 +36,7 @@ func DeserializeMessage(data []byte) (message tao.Message, err error) {
 
 // ProcessMessage process the logic of echo message.
 func ProcessMessage(ctx context.Context, conn tao.WriteCloser) {
-	msg := ctx.Value(tao.MessageCtx).(Message)
-	holmes.Info("receving message %s\n", msg.Content)
+	msg := tao.MessageFromContext(ctx).(Message)
+	holmes.Infof("receving message %s\n", msg.Content)
 	conn.Write(msg)
 }

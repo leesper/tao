@@ -20,7 +20,7 @@ func main() {
 
 	c, err := net.Dial("tcp", "127.0.0.1:12346")
 	if err != nil {
-		holmes.Fatal("%v", err)
+		holmes.Fatalln(err)
 	}
 
 	conn := tao.NewClientConn(0, c)
@@ -32,12 +32,12 @@ func main() {
 	}
 	for {
 		conn.Write(req)
-		holmes.Info(<-rspChan)
+		holmes.Infoln(<-rspChan)
 	}
 }
 
 // ProcessPingPongMessage handles business logic.
 func ProcessPingPongMessage(ctx context.Context, conn tao.WriteCloser) {
-	rsp := ctx.Value(tao.MessageCtx).(pingpong.Message)
+	rsp := tao.MessageFromContext(ctx).(pingpong.Message)
 	rspChan <- rsp.Info
 }

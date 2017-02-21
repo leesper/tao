@@ -18,16 +18,16 @@ type PingPongServer struct {
 // NewPingPongServer returns PingPongServer.
 func NewPingPongServer() *PingPongServer {
 	onConnect := tao.OnConnectOption(func(conn tao.WriteCloser) bool {
-		holmes.Info("%s", "On connect")
+		holmes.Infoln("on connect")
 		return true
 	})
 
 	onError := tao.OnErrorOption(func(conn tao.WriteCloser) {
-		holmes.Info("%s", "On error")
+		holmes.Infoln("on error")
 	})
 
 	onClose := tao.OnCloseOption(func(conn tao.WriteCloser) {
-		holmes.Info("%s", "Closing pingpong client")
+		holmes.Infoln("closing pingpong client")
 	})
 
 	return &PingPongServer{
@@ -43,7 +43,7 @@ func main() {
 
 	l, err := net.Listen("tcp", ":12346")
 	if err != nil {
-		holmes.Fatal("listen error", err)
+		holmes.Fatalln("listen error", err)
 	}
 
 	server := NewPingPongServer()
@@ -53,7 +53,7 @@ func main() {
 
 // ProcessPingPongMessage handles business logic.
 func ProcessPingPongMessage(ctx context.Context, conn tao.WriteCloser) {
-	ping := ctx.Value(tao.MessageCtx).(pingpong.Message)
+	ping := tao.MessageFromContext(ctx).(pingpong.Message)
 	holmes.Infoln(ping.Info)
 	rsp := pingpong.Message{
 		Info: "pong",

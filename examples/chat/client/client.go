@@ -12,32 +12,41 @@ import (
 )
 
 func main() {
+	defer holmes.Start().Stop()
+
 	tao.Register(chat.ChatMessage, chat.DeserializeMessage, nil)
 
 	c, err := net.Dial("tcp", "127.0.0.1:12345")
 	if err != nil {
-		holmes.Fatal("%v", err)
+		holmes.Fatalln(err)
 	}
 
 	onConnect := tao.OnConnectOption(func(c tao.WriteCloser) bool {
-		holmes.Info("%s", "On connect")
+		holmes.Infoln("on connect")
 		return true
 	})
 
 	onError := tao.OnErrorOption(func(c tao.WriteCloser) {
-		holmes.Info("%s", "On error")
+		holmes.Infoln("on error")
 	})
 
 	onClose := tao.OnCloseOption(func(c tao.WriteCloser) {
-		holmes.Info("On close")
-		os.Exit(0)
+		holmes.Infoln("on close")
 	})
 
 	onMessage := tao.OnMessageOption(func(msg tao.Message, c tao.WriteCloser) {
 		fmt.Print(msg.(chat.Message).Content)
 	})
 
-	conn := tao.NewClientConn(0, c, onConnect, onError, onClose, onMessage)
+	options := []tao.ServerOption{
+		onConnect,
+		onError,
+		onClose,
+		onMessage,
+		tao.ReconnectOption(),
+	}
+
+	conn := tao.NewClientConn(0, c, options...)
 	defer conn.Close()
 
 	conn.Start()
@@ -50,7 +59,11 @@ func main() {
 			msg := chat.Message{
 				Content: talk,
 			}
-			conn.Write(msg)
+			if err := conn.Write(msg); err != nil {
+				holmes.Infoln("error", err)
+			}
 		}
+		conn.Close()
 	}
+	fmt.Println("goodbye")
 }

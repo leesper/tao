@@ -37,7 +37,7 @@ type ServerConn struct {
 	belong  *Server
 	rawConn net.Conn
 
-	once      sync.Once
+	once      *sync.Once
 	wg        *sync.WaitGroup
 	sendCh    chan []byte
 	handlerCh chan MessageHandler
@@ -58,6 +58,7 @@ func NewServerConn(id int64, s *Server, c net.Conn) *ServerConn {
 		netid:     id,
 		belong:    s,
 		rawConn:   c,
+		once:      &sync.Once{},
 		wg:        &sync.WaitGroup{},
 		sendCh:    make(chan []byte, 1024),
 		handlerCh: make(chan MessageHandler, 1024),
@@ -170,19 +171,19 @@ func (sc *ServerConn) Close() {
 			sc.CancelTimer(id)
 		}
 
-		// block until all go-routines above exited.
-		sc.wg.Wait()
-
-		// close all channels
-		close(sc.sendCh)
-		close(sc.handlerCh)
-		close(sc.timerCh)
-
+		// close net.Conn, any blocked read or write operation will be unblocked and
+		// return errors.
 		if tc, ok := sc.rawConn.(*net.TCPConn); ok {
 			// avoid time-wait state
 			tc.SetLinger(0)
 		}
 		sc.rawConn.Close()
+
+		// close all channels and block until all go-routines exited.
+		close(sc.sendCh)
+		close(sc.handlerCh)
+		close(sc.timerCh)
+		sc.wg.Wait()
 
 		// tell server I'm done.
 		sc.belong.wg.Done()
@@ -258,7 +259,7 @@ type ClientConn struct {
 	opts      options
 	netid     int64
 	rawConn   net.Conn
-	once      sync.Once
+	once      *sync.Once
 	wg        *sync.WaitGroup
 	sendCh    chan []byte
 	handlerCh chan MessageHandler
@@ -290,6 +291,7 @@ func newClientConnWithOptions(netid int64, c net.Conn, opts options) *ClientConn
 		opts:      opts,
 		netid:     netid,
 		rawConn:   c,
+		once:      &sync.Once{},
 		wg:        &sync.WaitGroup{},
 		sendCh:    make(chan []byte, 1024),
 		handlerCh: make(chan MessageHandler, 1024),
@@ -380,7 +382,7 @@ func (cc *ClientConn) Close() {
 			onClose(cc)
 		}
 
-		// tell go-routines running readLoop, writeLoop and handleLoop to finish
+		// tell go-routines running readLoop, writeLoop and handleLoop to finish.
 		cc.mu.Lock()
 		cc.cancel()
 		cc.pending = nil
@@ -389,21 +391,29 @@ func (cc *ClientConn) Close() {
 		// stop timer
 		cc.timing.Stop()
 
-		// block until all go-routines above exited
-		cc.wg.Wait()
-
-		// close all channels
-		close(cc.sendCh)
-		close(cc.handlerCh)
-
+		// close net.Conn, any blocked read or write operation will be unblocked and
+		// return errors.
 		cc.rawConn.Close()
 
+		// close all channels and block until all go-routines exited.
+		close(cc.sendCh)
+		close(cc.handlerCh)
+		cc.wg.Wait()
+
+		// cc.once is a *sync.Once. After reconnect() returned, cc.once will point
+		// to a newly-allocated one while other go-routines such as readLoop,
+		// writeLoop and handleLoop blocking on the old *sync.Once continue to
+		// execute Close() (and of course do nothing because of sync.Once).
+		// NOTE that it will cause an "unlock of unlocked mutex" error if cc.once is
+		// a sync.Once struct, because "defer o.m.Unlock()" in sync.Once.Do() will
+		// be performed on an unlocked mutex(the newly-allocated one noticed above)
 		if cc.opts.reconnect {
 			cc.reconnect()
 		}
 	})
 }
 
+// reconnect reconnects and returns a new *ClientConn.
 func (cc *ClientConn) reconnect() {
 	var c net.Conn
 	var err error
@@ -418,7 +428,9 @@ func (cc *ClientConn) reconnect() {
 			holmes.Fatalln("net dial error", err)
 		}
 	}
-	cc = newClientConnWithOptions(cc.netid, c, cc.opts)
+	// copy the newly-created *ClientConn to cc, so after
+	// reconnect returned cc will be updated to new one.
+	*cc = *newClientConnWithOptions(cc.netid, c, cc.opts)
 	cc.Start()
 }
 
@@ -574,8 +586,10 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-cDone: // connection closed
+			holmes.Debugln("receiving cancel signal from conn")
 			return
 		case <-sDone: // server closed
+			holmes.Debugln("receiving cancel signal from server")
 			return
 		default:
 			msg, err = codec.Decode(rawConn)
@@ -648,8 +662,10 @@ func writeLoop(c WriteCloser, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-cDone: // connection closed
+			holmes.Debugln("receiving cancel signal from conn")
 			return
 		case <-sDone: // server closed
+			holmes.Debugln("receiving cancel signal from server")
 			return
 		case pkt = <-sendCh:
 			if pkt != nil {
@@ -703,8 +719,10 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-cDone: // connectin closed
+			holmes.Debugln("receiving cancel signal from conn")
 			return
 		case <-sDone: // server closed
+			holmes.Debugln("receiving cancel signal from server")
 			return
 		case msgHandler := <-handlerCh:
 			msg, handler := msgHandler.message, msgHandler.handler

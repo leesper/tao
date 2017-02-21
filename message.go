@@ -160,6 +160,7 @@ func (codec TypeLengthValueCodec) Decode(raw net.Conn) (Message, error) {
 			ec <- err
 			close(bc)
 			close(ec)
+			holmes.Debugln("go-routine read message type exited")
 			return
 		}
 		bc <- typeData
