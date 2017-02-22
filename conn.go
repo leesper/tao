@@ -189,7 +189,6 @@ func (sc *ServerConn) Close() {
 
 		// tell server I'm done.
 		sc.belong.wg.Done()
-		holmes.Infof("HOW MANY CONNECTIONS DO I HAVE: %d\n", sc.belong.conns.Size())
 	})
 }
 
@@ -387,21 +386,17 @@ func (cc *ClientConn) Close() {
 		// close net.Conn, any blocked read or write operation will be unblocked and
 		// return errors.
 		cc.rawConn.Close()
-		holmes.Debugln("CLOSE")
 
 		// cancel readLoop, writeLoop and handleLoop go-routines.
 		cc.mu.Lock()
 		cc.cancel()
 		cc.pending = nil
 		cc.mu.Unlock()
-		holmes.Debugln("CANCEL")
 
 		// stop timer
 		cc.timing.Stop()
-		holmes.Debugln("TIMER")
 
 		// wait until all go-routines exited.
-		holmes.Debugln("WAIT")
 		cc.wg.Wait()
 
 		// close all channels.
@@ -418,7 +413,6 @@ func (cc *ClientConn) Close() {
 		if cc.opts.reconnect {
 			cc.reconnect()
 		}
-		holmes.Debugln("RECONNECT")
 	})
 }
 
