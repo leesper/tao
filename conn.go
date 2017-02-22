@@ -159,7 +159,15 @@ func (sc *ServerConn) Close() {
 		sc.belong.conns.Remove(sc.netid)
 		addTotalConn(-1)
 
-		// tell go-routines running readLoop, writeLoop and handleLoop to finish
+		// close net.Conn, any blocked read or write operation will be unblocked and
+		// return errors.
+		if tc, ok := sc.rawConn.(*net.TCPConn); ok {
+			// avoid time-wait state
+			tc.SetLinger(0)
+		}
+		sc.rawConn.Close()
+
+		// cancel readLoop, writeLoop and handleLoop go-routines.
 		sc.mu.Lock()
 		sc.cancel()
 		pending := sc.pending
@@ -171,19 +179,13 @@ func (sc *ServerConn) Close() {
 			sc.CancelTimer(id)
 		}
 
-		// close net.Conn, any blocked read or write operation will be unblocked and
-		// return errors.
-		if tc, ok := sc.rawConn.(*net.TCPConn); ok {
-			// avoid time-wait state
-			tc.SetLinger(0)
-		}
-		sc.rawConn.Close()
+		// wait until all go-routines exited.
+		sc.wg.Wait()
 
 		// close all channels and block until all go-routines exited.
 		close(sc.sendCh)
 		close(sc.handlerCh)
 		close(sc.timerCh)
-		sc.wg.Wait()
 
 		// tell server I'm done.
 		sc.belong.wg.Done()
@@ -382,23 +384,29 @@ func (cc *ClientConn) Close() {
 			onClose(cc)
 		}
 
-		// tell go-routines running readLoop, writeLoop and handleLoop to finish.
+		// close net.Conn, any blocked read or write operation will be unblocked and
+		// return errors.
+		cc.rawConn.Close()
+		holmes.Debugln("CLOSE")
+
+		// cancel readLoop, writeLoop and handleLoop go-routines.
 		cc.mu.Lock()
 		cc.cancel()
 		cc.pending = nil
 		cc.mu.Unlock()
+		holmes.Debugln("CANCEL")
 
 		// stop timer
 		cc.timing.Stop()
+		holmes.Debugln("TIMER")
 
-		// close net.Conn, any blocked read or write operation will be unblocked and
-		// return errors.
-		cc.rawConn.Close()
+		// wait until all go-routines exited.
+		holmes.Debugln("WAIT")
+		cc.wg.Wait()
 
-		// close all channels and block until all go-routines exited.
+		// close all channels.
 		close(cc.sendCh)
 		close(cc.handlerCh)
-		cc.wg.Wait()
 
 		// cc.once is a *sync.Once. After reconnect() returned, cc.once will point
 		// to a newly-allocated one while other go-routines such as readLoop,
@@ -410,6 +418,7 @@ func (cc *ClientConn) Close() {
 		if cc.opts.reconnect {
 			cc.reconnect()
 		}
+		holmes.Debugln("RECONNECT")
 	})
 }
 
@@ -573,6 +582,7 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 		sDone = nil
 		setHeartBeatFunc = c.SetHeartBeat
 		onMessage = c.opts.onMessage
+		handlerCh = c.handlerCh
 	}
 
 	defer func() {
@@ -580,6 +590,7 @@ func readLoop(c WriteCloser, wg *sync.WaitGroup) {
 			holmes.Errorf("panics: %v\n", p)
 		}
 		wg.Done()
+		holmes.Debugln("readLoop go-routine exited")
 		c.Close()
 	}()
 
@@ -648,14 +659,18 @@ func writeLoop(c WriteCloser, wg *sync.WaitGroup) {
 			holmes.Errorf("panics: %v\n", p)
 		}
 		// drain all pending messages before exit
-		for pkt = range sendCh {
+		select {
+		case pkt = <-sendCh:
 			if pkt != nil {
 				if _, err = rawConn.Write(pkt); err != nil {
 					holmes.Errorf("error writing data %v\n", err)
 				}
 			}
+		default:
+			break
 		}
 		wg.Done()
+		holmes.Debugln("writeLoop go-routine exited")
 		c.Close()
 	}()
 
@@ -713,6 +728,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 			holmes.Errorf("panics: %v\n", p)
 		}
 		wg.Done()
+		holmes.Debugln("handleLoop go-routine exited")
 		c.Close()
 	}()
 
