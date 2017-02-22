@@ -117,7 +117,7 @@ func DeserializeHeartBeat(data []byte) (message Message, err error) {
 		return nil, ErrNilData
 	}
 	buf := bytes.NewReader(data)
-	err = binary.Read(buf, binary.BigEndian, &timestamp)
+	err = binary.Read(buf, binary.LittleEndian, &timestamp)
 	if err != nil {
 		return nil, err
 	}
