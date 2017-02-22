@@ -1,4 +1,4 @@
-Tao --- 轻量级TCP异步框架，Go语言实现, v1.5.1
+Tao --- 轻量级TCP异步框架，Go语言实现 v1.5.1
 ===========================================
 
 ## Light-weight TCP Asynchronous gOlang framework
