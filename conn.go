@@ -208,7 +208,7 @@ func (sc *ServerConn) Write(message Message) error {
 
 // RunAt runs a callback at the specified timestamp.
 func (sc *ServerConn) RunAt(timestamp time.Time, callback func(time.Time, WriteCloser)) int64 {
-	id := runAt(sc.ctx, sc.belong.timing, timestamp, callback)
+	id := runAt(sc.ctx, sc.netid, sc.belong.timing, timestamp, callback)
 	if id >= 0 {
 		sc.AddPendingTimer(id)
 	}
@@ -217,7 +217,7 @@ func (sc *ServerConn) RunAt(timestamp time.Time, callback func(time.Time, WriteC
 
 // RunAfter runs a callback right after the specified duration ellapsed.
 func (sc *ServerConn) RunAfter(duration time.Duration, callback func(time.Time, WriteCloser)) int64 {
-	id := runAfter(sc.ctx, sc.belong.timing, duration, callback)
+	id := runAfter(sc.ctx, sc.netid, sc.belong.timing, duration, callback)
 	if id >= 0 {
 		sc.AddPendingTimer(id)
 	}
@@ -226,7 +226,7 @@ func (sc *ServerConn) RunAfter(duration time.Duration, callback func(time.Time, 
 
 // RunEvery runs a callback on every interval time.
 func (sc *ServerConn) RunEvery(interval time.Duration, callback func(time.Time, WriteCloser)) int64 {
-	id := runEvery(sc.ctx, sc.belong.timing, interval, callback)
+	id := runEvery(sc.ctx, sc.netid, sc.belong.timing, interval, callback)
 	if id >= 0 {
 		sc.AddPendingTimer(id)
 	}
@@ -444,7 +444,7 @@ func (cc *ClientConn) Write(message Message) error {
 
 // RunAt runs a callback at the specified timestamp.
 func (cc *ClientConn) RunAt(timestamp time.Time, callback func(time.Time, WriteCloser)) int64 {
-	id := runAt(cc.ctx, cc.timing, timestamp, callback)
+	id := runAt(cc.ctx, cc.netid, cc.timing, timestamp, callback)
 	if id >= 0 {
 		cc.AddPendingTimer(id)
 	}
@@ -453,7 +453,7 @@ func (cc *ClientConn) RunAt(timestamp time.Time, callback func(time.Time, WriteC
 
 // RunAfter runs a callback right after the specified duration ellapsed.
 func (cc *ClientConn) RunAfter(duration time.Duration, callback func(time.Time, WriteCloser)) int64 {
-	id := runAfter(cc.ctx, cc.timing, duration, callback)
+	id := runAfter(cc.ctx, cc.netid, cc.timing, duration, callback)
 	if id >= 0 {
 		cc.AddPendingTimer(id)
 	}
@@ -462,7 +462,7 @@ func (cc *ClientConn) RunAfter(duration time.Duration, callback func(time.Time, 
 
 // RunEvery runs a callback on every interval time.
 func (cc *ClientConn) RunEvery(interval time.Duration, callback func(time.Time, WriteCloser)) int64 {
-	id := runEvery(cc.ctx, cc.timing, interval, callback)
+	id := runEvery(cc.ctx, cc.netid, cc.timing, interval, callback)
 	if id >= 0 {
 		cc.AddPendingTimer(id)
 	}
@@ -493,19 +493,19 @@ func (cc *ClientConn) LocalAddr() net.Addr {
 	return cc.rawConn.LocalAddr()
 }
 
-func runAt(ctx context.Context, timing *TimingWheel, ts time.Time, cb func(time.Time, WriteCloser)) int64 {
-	timeout := NewOnTimeOut(ctx, cb)
+func runAt(ctx context.Context, netID int64, timing *TimingWheel, ts time.Time, cb func(time.Time, WriteCloser)) int64 {
+	timeout := NewOnTimeOut(NewContextWithNetID(ctx, netID), cb)
 	return timing.AddTimer(ts, 0, timeout)
 }
 
-func runAfter(ctx context.Context, timing *TimingWheel, d time.Duration, cb func(time.Time, WriteCloser)) int64 {
+func runAfter(ctx context.Context, netID int64, timing *TimingWheel, d time.Duration, cb func(time.Time, WriteCloser)) int64 {
 	delay := time.Now().Add(d)
-	return runAt(ctx, timing, delay, cb)
+	return runAt(ctx, netID, timing, delay, cb)
 }
 
-func runEvery(ctx context.Context, timing *TimingWheel, d time.Duration, cb func(time.Time, WriteCloser)) int64 {
+func runEvery(ctx context.Context, netID int64, timing *TimingWheel, d time.Duration, cb func(time.Time, WriteCloser)) int64 {
 	delay := time.Now().Add(d)
-	timeout := NewOnTimeOut(ctx, cb)
+	timeout := NewOnTimeOut(NewContextWithNetID(ctx, netID), cb)
 	return timing.AddTimer(delay, d, timeout)
 }
 
@@ -748,7 +748,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 			}
 		case timeout := <-timerCh:
 			if timeout != nil {
-				timeoutNetID := timeout.Ctx.Value(netIDCtx).(int64)
+				timeoutNetID := NetIDFromContext(timeout.Ctx)
 				if timeoutNetID != netID {
 					holmes.Errorf("timeout net %d, conn net %d, mismatched!\n", timeoutNetID, netID)
 				}
