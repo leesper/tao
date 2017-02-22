@@ -1,56 +1,69 @@
 package main
 
 import (
-  "fmt"
-  "bufio"
-  "os"
-  "net"
-  "github.com/leesper/tao"
-  "github.com/leesper/tao/examples/chat"
-  "github.com/leesper/holmes"
+	"bufio"
+	"fmt"
+	"net"
+	"os"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
+	"github.com/leesper/tao/examples/chat"
 )
 
 func main() {
-  tao.Register(chat.ChatMessage{}.MessageNumber(), chat.DeserializeChatMessage, nil)
+	defer holmes.Start().Stop()
 
-  c, err := net.Dial("tcp", "127.0.0.1:18341")
-  if err != nil {
-    holmes.Fatal("%v", err)
-  }
+	tao.Register(chat.ChatMessage, chat.DeserializeMessage, nil)
 
-  tcpConnection := tao.NewClientConnection(0, false, c, nil)
-  defer tcpConnection.Close()
+	c, err := net.Dial("tcp", "127.0.0.1:12345")
+	if err != nil {
+		holmes.Fatalln(err)
+	}
 
-  tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    holmes.Info("%s", "On connect")
-    return true
-  })
+	onConnect := tao.OnConnectOption(func(c tao.WriteCloser) bool {
+		holmes.Infoln("on connect")
+		return true
+	})
 
-  tcpConnection.SetOnErrorCallback(func() {
-    holmes.Info("%s", "On error")
-  })
+	onError := tao.OnErrorOption(func(c tao.WriteCloser) {
+		holmes.Infoln("on error")
+	})
 
-  tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    holmes.Info("On close")
-    os.Exit(0)
-  })
+	onClose := tao.OnCloseOption(func(c tao.WriteCloser) {
+		holmes.Infoln("on close")
+	})
 
-  tcpConnection.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
-    fmt.Print(msg.(chat.ChatMessage).Info)
-  })
+	onMessage := tao.OnMessageOption(func(msg tao.Message, c tao.WriteCloser) {
+		fmt.Print(msg.(chat.Message).Content)
+	})
 
-  tcpConnection.Start()
-  for {
-    reader := bufio.NewReader(os.Stdin)
-    talk, _ := reader.ReadString('\n')
-    if talk == "bye\n" {
-      break
-    } else {
-      msg := chat.ChatMessage{
-        Info: talk,
-      }
-      tcpConnection.Write(msg)
-    }
-  }
-  tcpConnection.Close()
+	options := []tao.ServerOption{
+		onConnect,
+		onError,
+		onClose,
+		onMessage,
+		tao.ReconnectOption(),
+	}
+
+	conn := tao.NewClientConn(0, c, options...)
+	defer conn.Close()
+
+	conn.Start()
+	for {
+		reader := bufio.NewReader(os.Stdin)
+		talk, _ := reader.ReadString('\n')
+		if talk == "bye\n" {
+			break
+		} else {
+			msg := chat.Message{
+				Content: talk,
+			}
+			if err := conn.Write(msg); err != nil {
+				holmes.Infoln("error", err)
+			}
+		}
+		conn.Close()
+	}
+	fmt.Println("goodbye")
 }

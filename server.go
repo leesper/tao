@@ -1,9 +1,11 @@
 package tao
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -15,9 +17,6 @@ import (
 func init() {
 	flag.Parse()
 	netIdentifier = NewAtomicInt64(0)
-	tlsWrapper = func(conn net.Conn) net.Conn {
-		return conn
-	}
 }
 
 var (
@@ -25,94 +24,184 @@ var (
 	tlsWrapper    func(net.Conn) net.Conn
 )
 
-type Server interface {
-	IsRunning() bool
-	GetConnections() []Connection
-	GetConnectionMap() *ConnectionMap
-	GetTimingWheel() *TimingWheel
-	GetServerAddress() string
-	Start()
-	Close()
-
-	SetOnScheduleCallback(time.Duration, func(time.Time, interface{}))
-	GetOnScheduleCallback() (time.Duration, onScheduleFunc)
-	SetOnConnectCallback(func(Connection) bool)
-	GetOnConnectCallback() onConnectFunc
-	SetOnMessageCallback(func(Message, Connection))
-	GetOnMessageCallback() onMessageFunc
-	SetOnCloseCallback(func(Connection))
-	GetOnCloseCallback() onCloseFunc
-	SetOnErrorCallback(func())
-	GetOnErrorCallback() onErrorFunc
-}
-
-type TCPServer struct {
-	isRunning     *AtomicBoolean
-	connections   *ConnectionMap
-	timingWheel   *TimingWheel
-	finish        *sync.WaitGroup
-	address       string
-	closeServChan chan struct{}
-
+type options struct {
+	tlsCfg    *tls.Config
+	codec     Codec
 	onConnect onConnectFunc
 	onMessage onMessageFunc
 	onClose   onCloseFunc
 	onError   onErrorFunc
-
-	duration   time.Duration
-	onSchedule onScheduleFunc
+	reconnect bool // for ClientConn use only
 }
 
-func NewTCPServer(addr string) Server {
-	return &TCPServer{
-		isRunning:     NewAtomicBoolean(true),
-		connections:   NewConnectionMap(),
-		timingWheel:   NewTimingWheel(),
-		finish:        &sync.WaitGroup{},
-		address:       addr,
-		closeServChan: make(chan struct{}),
+// ServerOption sets server options.
+type ServerOption func(*options)
+
+// ReconnectOption returns a ServerOption that will make ClientConn reconnectable.
+func ReconnectOption() ServerOption {
+	return func(o *options) {
+		o.reconnect = true
 	}
 }
 
-func (server *TCPServer) IsRunning() bool {
-	return server.isRunning.Get()
-}
-
-func (server *TCPServer) GetConnections() []Connection {
-	conns := []Connection{}
-	server.connections.RLock()
-	for _, conn := range server.connections.m {
-		conns = append(conns, conn)
+// CustomCodecOption returns a ServerOption that will apply a custom Codec.
+func CustomCodecOption(codec Codec) ServerOption {
+	return func(o *options) {
+		o.codec = codec
 	}
-	server.connections.RUnlock()
-	return conns
 }
 
-func (server *TCPServer) GetConnectionMap() *ConnectionMap {
-	return server.connections
-}
-
-func (server *TCPServer) GetTimingWheel() *TimingWheel {
-	return server.timingWheel
-}
-
-func (server *TCPServer) GetServerAddress() string {
-	return server.address
-}
-
-func (server *TCPServer) Start() {
-	server.finish.Add(1)
-	go server.timeOutLoop()
-
-	listener, err := net.Listen("tcp", server.address)
-	if err != nil {
-		holmes.Fatal("%v", err)
+// TLSCredsOption returns a ServerOption that will set TLS credentials for server
+// connections.
+func TLSCredsOption(config *tls.Config) ServerOption {
+	return func(o *options) {
+		o.tlsCfg = config
 	}
-	defer listener.Close()
+}
+
+// OnConnectOption returns a ServerOption that will set callback to call when new
+// client connected.
+func OnConnectOption(cb func(WriteCloser) bool) ServerOption {
+	return func(o *options) {
+		o.onConnect = cb
+	}
+}
+
+// OnMessageOption returns a ServerOption that will set callback to call when new
+// message arrived.
+func OnMessageOption(cb func(Message, WriteCloser)) ServerOption {
+	return func(o *options) {
+		o.onMessage = cb
+	}
+}
+
+// OnCloseOption returns a ServerOption that will set callback to call when client
+// closed.
+func OnCloseOption(cb func(WriteCloser)) ServerOption {
+	return func(o *options) {
+		o.onClose = cb
+	}
+}
+
+// OnErrorOption returns a ServerOption that will set callback to call when error
+// occurs.
+func OnErrorOption(cb func(WriteCloser)) ServerOption {
+	return func(o *options) {
+		o.onError = cb
+	}
+}
+
+// Server  is a server to serve TCP requests.
+type Server struct {
+	opts   options
+	ctx    context.Context
+	cancel context.CancelFunc
+	conns  *ConnMap
+	timing *TimingWheel
+	wg     *sync.WaitGroup
+	mu     sync.Mutex // guards following
+	lis    map[net.Listener]bool
+	// for periodically running function every duration.
+	interv time.Duration
+	sched  onScheduleFunc
+}
+
+// NewServer returns a new TCP server which has not started
+// to serve requests yet.
+func NewServer(opt ...ServerOption) *Server {
+	var opts options
+	for _, o := range opt {
+		o(&opts)
+	}
+	if opts.codec == nil {
+		opts.codec = TypeLengthValueCodec{}
+	}
+
+	s := &Server{
+		opts:  opts,
+		conns: NewConnMap(),
+		wg:    &sync.WaitGroup{},
+		lis:   make(map[net.Listener]bool),
+	}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.timing = NewTimingWheel(s.ctx)
+	return s
+}
+
+// ConnsMap returns connections managed.
+func (s *Server) ConnsMap() *ConnMap {
+	return s.conns
+}
+
+// Sched sets a callback to invoke every duration.
+func (s *Server) Sched(dur time.Duration, sched func(time.Time, WriteCloser)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.interv = dur
+	s.sched = onScheduleFunc(sched)
+}
+
+// Broadcast broadcasts message to all server connections managed.
+func (s *Server) Broadcast(msg Message) {
+	s.conns.RLock()
+	defer s.conns.RUnlock()
+	for _, c := range s.conns.m {
+		if err := c.Write(msg); err != nil {
+			holmes.Errorf("broadcast error %v\n", err)
+		}
+	}
+}
+
+// Unicast unicasts message to a specified conn.
+func (s *Server) Unicast(id int64, msg Message) error {
+	s.conns.RLock()
+	defer s.conns.RUnlock()
+	c, ok := s.conns.m[id]
+	if ok {
+		return c.Write(msg)
+	}
+	return fmt.Errorf("conn %d not found", id)
+}
+
+// GetConn returns a server connection with specified ID.
+func (s *Server) GetConn(id int64) (*ServerConn, bool) {
+	s.conns.RLock()
+	defer s.conns.RUnlock()
+	sc, ok := s.conns.m[id]
+	return sc, ok
+}
+
+// Start starts the TCP server, accepting new clients and creating service
+// go-routine for each. The service go-routines read messages and then call
+// the registered handlers to handle them. Start returns when failed with fatal
+// errors, the listener willl be closed when returned.
+func (s *Server) Start(l net.Listener) error {
+	s.mu.Lock()
+	if s.lis == nil {
+		s.mu.Unlock()
+		l.Close()
+		return ErrServerClosed
+	}
+	s.lis[l] = true
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		if s.lis != nil && s.lis[l] {
+			l.Close()
+			delete(s.lis, l)
+		}
+		s.mu.Unlock()
+	}()
+
+	holmes.Infof("server start, net %s addr %s\n", l.Addr().Network(), l.Addr().String())
+
+	s.wg.Add(1)
+	go s.timeOutLoop()
 
 	var tempDelay time.Duration
-	for server.IsRunning() {
-		conn, err := listener.Accept()
+	for {
+		rawConn, err := l.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				if tempDelay == 0 {
@@ -120,246 +209,126 @@ func (server *TCPServer) Start() {
 				} else {
 					tempDelay *= 2
 				}
-				if tempDelay >= 1*time.Second {
-					tempDelay = 1 * time.Second
+				if max := 1 * time.Second; tempDelay >= max {
+					tempDelay = max
 				}
-				holmes.Error("Accept error %v, retrying in %d", err, tempDelay)
-				time.Sleep(tempDelay)
+				holmes.Errorf("accept error %v, retrying in %d\n", err, tempDelay)
+				select {
+				case <-time.After(tempDelay):
+				case <-s.ctx.Done():
+				}
 				continue
 			}
-			return
+			return err
 		}
 		tempDelay = 0
 
-		connSize := server.connections.Size()
-		if server.connections.Size() >= MAX_CONNECTIONS {
-			holmes.Error("Num of conns %d exceeding MAX %d, refuse", connSize, MAX_CONNECTIONS)
-			conn.Close()
+		// how many connections do we have ?
+		sz := s.conns.Size()
+		if sz >= MaxConnections {
+			holmes.Warnf("max connections size %d, refuse\n", sz)
+			rawConn.Close()
 			continue
 		}
 
-		conn = tlsWrapper(conn) // wrap as a tls connection if configured
-
-		/* Create a TCP connection upon accepting a new client, assign an net id
-		   to it, then manage it in connections map, and start it */
-		netid := netIdentifier.GetAndIncrement()
-		tcpConn := NewServerConnection(netid, server, conn)
-		tcpConn.SetName(tcpConn.GetRemoteAddress().String())
-		duration, onSchedule := server.GetOnScheduleCallback()
-		if onSchedule != nil {
-			tcpConn.RunEvery(duration, onSchedule)
+		if s.opts.tlsCfg != nil {
+			rawConn = tls.Server(rawConn, s.opts.tlsCfg)
 		}
-		server.connections.Put(netid, tcpConn)
+
+		netid := netIdentifier.GetAndIncrement()
+		sc := NewServerConn(netid, s, rawConn)
+		sc.SetName(sc.rawConn.RemoteAddr().String())
+
+		s.mu.Lock()
+		if s.sched != nil {
+			sc.RunEvery(s.interv, s.sched)
+		}
+		s.mu.Unlock()
+
+		s.conns.Put(netid, sc)
 		addTotalConn(1)
 
-		// put tcpConn.Start() run in another WaitGroup-synchronized go-routine
-		server.finish.Add(1)
+		s.wg.Add(1)
 		go func() {
-			tcpConn.Start()
+			sc.Start()
 		}()
 
-		holmes.Info("Accepting client %s, net id %d, now %d\n", tcpConn.GetName(), netid, server.connections.Size())
-		server.connections.RLock()
-		for _, conn := range server.connections.m {
-			holmes.Info("Client %s %t\n", conn.GetName(), conn.IsRunning())
+		holmes.Infof("accepted client %s, id %d, total %d\n", sc.GetName(), netid, s.conns.Size())
+		s.conns.RLock()
+		for _, c := range s.conns.m {
+			holmes.Infof("client %s\n", c.GetName())
 		}
-		server.connections.RUnlock()
-	}
+		s.conns.RUnlock()
+	} // for loop
 }
 
-// wait until all connections closed
-func (server *TCPServer) Close() {
-	if server.isRunning.CompareAndSet(true, false) {
-		server.GetTimingWheel().Stop()
+// Stop gracefully closes the server, it blocked until all connections
+// are closed and all go-routines are exited.
+func (s *Server) Stop() {
+	// immediately stop accepting new clients
+	s.mu.Lock()
+	listeners := s.lis
+	s.lis = nil
+	s.mu.Unlock()
 
-		var conns []Connection
-		server.connections.RLock()
-		for _, c := range server.connections.m {
-			conns = append(conns, c)
-		}
-		server.connections.RUnlock()
-
-		for _, conn := range conns {
-			conn.Close()
-		}
-
-		close(server.closeServChan)
-		server.finish.Wait()
-
-		os.Exit(0)
-	}
-}
-
-func (server *TCPServer) GetTimeOutChannel() chan *OnTimeOut {
-	return server.timingWheel.GetTimeOutChannel()
-}
-
-func (server *TCPServer) SetOnScheduleCallback(duration time.Duration, callback func(time.Time, interface{})) {
-	server.duration = duration
-	server.onSchedule = onScheduleFunc(callback)
-}
-
-func (server *TCPServer) GetOnScheduleCallback() (time.Duration, onScheduleFunc) {
-	return server.duration, server.onSchedule
-}
-
-func (server *TCPServer) SetOnConnectCallback(callback func(Connection) bool) {
-	server.onConnect = onConnectFunc(callback)
-}
-
-func (server *TCPServer) GetOnConnectCallback() onConnectFunc {
-	return server.onConnect
-}
-
-func (server *TCPServer) SetOnMessageCallback(callback func(Message, Connection)) {
-	server.onMessage = onMessageFunc(callback)
-}
-
-func (server *TCPServer) GetOnMessageCallback() onMessageFunc {
-	return server.onMessage
-}
-
-func (server *TCPServer) SetOnCloseCallback(callback func(Connection)) {
-	server.onClose = onCloseFunc(callback)
-}
-
-func (server *TCPServer) GetOnCloseCallback() onCloseFunc {
-	return server.onClose
-}
-
-func (server *TCPServer) SetOnErrorCallback(callback func()) {
-	server.onError = onErrorFunc(callback)
-}
-
-func (server *TCPServer) GetOnErrorCallback() onErrorFunc {
-	return server.onError
-}
-
-type TLSTCPServer struct {
-	certFile string
-	keyFile  string
-	*TCPServer
-}
-
-func NewTLSTCPServer(addr, cert, key string) Server {
-	server := &TLSTCPServer{
-		certFile:  cert,
-		keyFile:   key,
-		TCPServer: NewTCPServer(addr).(*TCPServer),
+	for l := range listeners {
+		l.Close()
+		holmes.Infof("stop accepting at address %s\n", l.Addr().String())
 	}
 
-	config, err := LoadTLSConfig(server.certFile, server.keyFile, false)
-	if err != nil {
-		holmes.Fatal("loading %s %s: %v", server.certFile, server.keyFile, err)
+	// close all connections
+	conns := map[int64]*ServerConn{}
+	s.conns.RLock()
+	for k, v := range s.conns.m {
+		conns[k] = v
+	}
+	s.conns.Clear()
+	s.conns.RUnlock()
+
+	for _, c := range conns {
+		c.rawConn.Close()
+		holmes.Infof("close client %s\n", c.GetName())
 	}
 
-	setTLSWrapper(func(conn net.Conn) net.Conn {
-		return tls.Server(conn, &config)
-	})
+	s.mu.Lock()
+	s.cancel()
+	s.mu.Unlock()
 
-	return server
+	s.wg.Wait()
+
+	holmes.Infoln("server stopped gracefully, bye.")
+	os.Exit(0)
 }
 
-func (server *TLSTCPServer) IsRunning() bool {
-	return server.TCPServer.IsRunning()
-}
-
-func (server *TLSTCPServer) GetConnections() []Connection {
-	return server.TCPServer.GetConnections()
-}
-
-func (server *TLSTCPServer) GetConnectionMap() *ConnectionMap {
-	return server.TCPServer.GetConnectionMap()
-}
-
-func (server *TLSTCPServer) GetTimingWheel() *TimingWheel {
-	return server.TCPServer.GetTimingWheel()
-}
-
-func (server *TLSTCPServer) GetServerAddress() string {
-	return server.TCPServer.GetServerAddress()
-}
-
-func (server *TLSTCPServer) Start() {
-	server.TCPServer.Start()
-}
-
-func (server *TLSTCPServer) Close() {
-	server.TCPServer.Close()
-}
-
-func (server *TLSTCPServer) SetOnScheduleCallback(duration time.Duration, callback func(time.Time, interface{})) {
-	server.TCPServer.SetOnScheduleCallback(duration, callback)
-}
-
-func (server *TLSTCPServer) GetOnScheduleCallback() (time.Duration, onScheduleFunc) {
-	return server.TCPServer.GetOnScheduleCallback()
-}
-
-func (server *TLSTCPServer) SetOnConnectCallback(callback func(Connection) bool) {
-	server.TCPServer.SetOnConnectCallback(callback)
-}
-
-func (server *TLSTCPServer) GetOnConnectCallback() onConnectFunc {
-	return server.TCPServer.GetOnConnectCallback()
-}
-
-func (server *TLSTCPServer) SetOnMessageCallback(callback func(Message, Connection)) {
-	server.TCPServer.SetOnMessageCallback(callback)
-}
-
-func (server *TLSTCPServer) GetOnMessageCallback() onMessageFunc {
-	return server.TCPServer.GetOnMessageCallback()
-}
-
-func (server *TLSTCPServer) SetOnCloseCallback(callback func(Connection)) {
-	server.TCPServer.SetOnCloseCallback(callback)
-}
-
-func (server *TLSTCPServer) GetOnCloseCallback() onCloseFunc {
-	return server.TCPServer.GetOnCloseCallback()
-}
-
-func (server *TLSTCPServer) SetOnErrorCallback(callback func()) {
-	server.TCPServer.SetOnErrorCallback(callback)
-}
-
-func (server *TLSTCPServer) GetOnErrorCallback() onErrorFunc {
-	return server.TCPServer.GetOnErrorCallback()
-}
-
-/* Retrieve the extra data(i.e. net id), and then redispatch
-timeout callbacks to corresponding client connection, this
-prevents one client from running callbacks of other clients */
-func (server *TCPServer) timeOutLoop() {
-	defer server.finish.Done()
+// Retrieve the extra data(i.e. net id), and then redispatch timeout callbacks
+// to corresponding client connection, this prevents one client from running
+// callbacks of other clients
+func (s *Server) timeOutLoop() {
+	defer s.wg.Done()
 
 	for {
 		select {
-		case <-server.closeServChan:
+		case <-s.ctx.Done():
 			return
 
-		case timeout := <-server.GetTimingWheel().GetTimeOutChannel():
-			netid := timeout.ExtraData.(int64)
-			if conn, ok := server.connections.Get(netid); ok {
-				tcpConn := conn.(Connection)
-				if tcpConn.IsRunning() {
-					tcpConn.GetTimeOutChannel() <- timeout
-				}
+		case timeout := <-s.timing.GetTimeOutChannel():
+			netID := timeout.Ctx.Value(netIDCtx).(int64)
+			if sc, ok := s.conns.Get(netID); ok {
+				sc.timerCh <- timeout
 			} else {
-				holmes.Warn("Invalid client %d", netid)
+				holmes.Warnf("invalid client %d\n", netID)
 			}
 		}
 	}
 }
 
-func LoadTLSConfig(certFile, keyFile string, isSkipVerify bool) (tls.Config, error) {
-	var config tls.Config
+// LoadTLSConfig returns a TLS configuration with the specified cert and key file.
+func LoadTLSConfig(certFile, keyFile string, isSkipVerify bool) (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return config, err
+		return nil, err
 	}
-	config = tls.Config{
+	config := &tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		InsecureSkipVerify: isSkipVerify,
 		CipherSuites: []uint16{
@@ -386,8 +355,4 @@ func LoadTLSConfig(certFile, keyFile string, isSkipVerify bool) (tls.Config, err
 	config.Time = func() time.Time { return now }
 	config.Rand = rand.Reader
 	return config, nil
-}
-
-func setTLSWrapper(wrapper func(conn net.Conn) net.Conn) {
-	tlsWrapper = wrapper
 }

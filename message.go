@@ -1,40 +1,53 @@
 package tao
 
 import (
-  "bytes"
-  "encoding/binary"
-  "fmt"
-  "io"
+	"bytes"
+	"context"
+	"encoding/binary"
+	"fmt"
+	"io"
+	"net"
 
-  "github.com/leesper/holmes"
+	"github.com/leesper/holmes"
 )
 
-// 0 is the preserved heart beat message number, you can define your own.
 const (
-  HEART_BEAT = 0
+	// HeartBeat is the default heart beat message number.
+	HeartBeat = 0
 )
 
-// handlerFunc handles the business logic for some type of Message.
-type handlerFunc func(Context, Connection)
-
-// unmarshalFunc parses bytes into Message.
-type unmarshalFunc func([]byte) (Message, error)
-
-// messageFunc is the collection of unmarshal and handle functions about Message.
-type messageFunc struct {
-  handler handlerFunc
-  unmarshaler unmarshalFunc
+// Handler takes the responsibility to handle incoming messages.
+type Handler interface {
+	Handle(context.Context, interface{})
 }
 
-// messageRegistry is the inner registry of all message related unmarshal and handle functions.
+// HandlerFunc serves as an adapter to allow the use of ordinary functions as handlers.
+type HandlerFunc func(context.Context, WriteCloser)
+
+// Handle calls f(ctx, c)
+func (f HandlerFunc) Handle(ctx context.Context, c WriteCloser) {
+	f(ctx, c)
+}
+
+// UnmarshalFunc unmarshals bytes into Message.
+type UnmarshalFunc func([]byte) (Message, error)
+
+// handlerUnmarshaler is a combination of unmarshal and handle functions for message.
+type handlerUnmarshaler struct {
+	handler     HandlerFunc
+	unmarshaler UnmarshalFunc
+}
+
 var (
-  buf *bytes.Buffer
-  messageRegistry map[int32]messageFunc
+	buf *bytes.Buffer
+	// messageRegistry is the registry of all
+	// message-related unmarshal and handle functions.
+	messageRegistry map[int32]handlerUnmarshaler
 )
 
 func init() {
-  messageRegistry = map[int32]messageFunc{}
-  buf = new(bytes.Buffer)
+	messageRegistry = map[int32]handlerUnmarshaler{}
+	buf = new(bytes.Buffer)
 }
 
 // Register registers the unmarshal and handle functions for msgType.
@@ -42,183 +55,207 @@ func init() {
 // If no handler function provided, the message will not be handled unless you
 // set a default one by calling SetOnMessageCallback.
 // If Register being called twice on one msgType, it will panics.
-func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(Context, Connection)) {
-  if _, ok := messageRegistry[msgType]; ok {
-    panic(fmt.Sprintf("trying to register message %d twice", msgType))
-  }
+func Register(msgType int32, unmarshaler func([]byte) (Message, error), handler func(context.Context, WriteCloser)) {
+	if _, ok := messageRegistry[msgType]; ok {
+		panic(fmt.Sprintf("trying to register message %d twice", msgType))
+	}
 
-  messageRegistry[msgType] = messageFunc{
-    unmarshaler: unmarshaler,
-    handler: handler,
-  }
+	messageRegistry[msgType] = handlerUnmarshaler{
+		unmarshaler: unmarshaler,
+		handler:     HandlerFunc(handler),
+	}
 }
 
-// GetUnmarshaler returns the corresponding unmarshal function for msgType.
-func GetUnmarshaler(msgType int32) unmarshalFunc {
-  entry, ok := messageRegistry[msgType]
-  if !ok {
-    return nil
-  }
-  return entry.unmarshaler
+// GetUnmarshalFunc returns the corresponding unmarshal function for msgType.
+func GetUnmarshalFunc(msgType int32) UnmarshalFunc {
+	entry, ok := messageRegistry[msgType]
+	if !ok {
+		return nil
+	}
+	return entry.unmarshaler
 }
 
-// GetHandler returns the corresponding handler function for msgType.
-func GetHandler(msgType int32) handlerFunc {
-  entry, ok := messageRegistry[msgType]
-  if !ok {
-    return nil
-  }
-  return entry.handler
+// GetHandlerFunc returns the corresponding handler function for msgType.
+func GetHandlerFunc(msgType int32) HandlerFunc {
+	entry, ok := messageRegistry[msgType]
+	if !ok {
+		return nil
+	}
+	return entry.handler
 }
 
 // Message represents the structured data that can be handled.
 type Message interface {
-  MessageNumber() int32
-  Serialize() ([]byte, error)
+	MessageNumber() int32
+	Serialize() ([]byte, error)
 }
 
-// Context is the context info for every handler function.
-// Handler function handles the business logic about message.
-// We can find the client connection who sent this message by netid and send back responses.
-type Context struct{
-  message Message
-  netid int64
-}
-
-func NewContext(msg Message, id int64) Context {
-  return Context{
-    message: msg,
-    netid: id,
-  }
-}
-
-func (ctx Context)Message() Message {
-  return ctx.message
-}
-
-func (ctx Context)Id() int64 {
-  return ctx.netid
-}
-
-// HeartBeatMessage for long-term connection keeping alive.
+// HeartBeatMessage for application-level keeping alive.
 type HeartBeatMessage struct {
-  Timestamp int64
+	Timestamp int64
 }
 
+// Serialize serializes HeartBeatMessage into bytes.
 func (hbm HeartBeatMessage) Serialize() ([]byte, error) {
-  buf.Reset()
-  err := binary.Write(buf, binary.BigEndian, hbm.Timestamp)
-  if err != nil {
-    return nil, err
-  }
-  return buf.Bytes(), nil
+	buf.Reset()
+	err := binary.Write(buf, binary.LittleEndian, hbm.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
+// MessageNumber returns message number.
 func (hbm HeartBeatMessage) MessageNumber() int32 {
-  return HEART_BEAT
+	return HeartBeat
 }
 
-func DeserializeHeartBeatMessage(data []byte) (message Message, err error) {
-  var timestamp int64
-  if data == nil {
-    return nil, ErrorNilData
-  }
-  buf := bytes.NewReader(data)
-  err = binary.Read(buf, binary.BigEndian, &timestamp)
-  if err != nil {
-    return nil, err
-  }
-  return HeartBeatMessage{
-    Timestamp: timestamp,
-  }, nil
+// DeserializeHeartBeat deserializes bytes into Message.
+func DeserializeHeartBeat(data []byte) (message Message, err error) {
+	var timestamp int64
+	if data == nil {
+		return nil, ErrNilData
+	}
+	buf := bytes.NewReader(data)
+	err = binary.Read(buf, binary.LittleEndian, &timestamp)
+	if err != nil {
+		return nil, err
+	}
+	return HeartBeatMessage{
+		Timestamp: timestamp,
+	}, nil
 }
 
-func ProcessHeartBeatMessage(ctx Context, conn Connection) {
-  heartBeatMsg := ctx.Message().(HeartBeatMessage)
-  conn.SetHeartBeat(heartBeatMsg.Timestamp)
+// HandleHeartBeat updates connection heart beat timestamp.
+func HandleHeartBeat(ctx context.Context, c WriteCloser) {
+	msg := MessageFromContext(ctx)
+	switch c := c.(type) {
+	case *ServerConn:
+		c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
+	case *ClientConn:
+		c.SetHeartBeat(msg.(HeartBeatMessage).Timestamp)
+	}
 }
 
 // Codec is the interface for message coder and decoder.
 // Application programmer can define a custom codec themselves.
 type Codec interface {
-  Decode(Connection) (Message, error)
-  Encode(Message) ([]byte, error)
+	Decode(net.Conn) (Message, error)
+	Encode(Message) ([]byte, error)
 }
 
+// TypeLengthValueCodec defines a special codec.
 // Format: type-length-value |4 bytes|4 bytes|n bytes <= 8M|
-type TypeLengthValueCodec struct {}
+type TypeLengthValueCodec struct{}
 
 // Decode decodes the bytes data into Message
-func (codec TypeLengthValueCodec)Decode(c Connection) (Message, error) {
-  byteChan := make(chan []byte)
-  errorChan := make(chan error)
-  var err error
+func (codec TypeLengthValueCodec) Decode(raw net.Conn) (Message, error) {
+	byteChan := make(chan []byte)
+	errorChan := make(chan error)
 
-  go func(bc chan []byte, ec chan error) {
-    typeData := make([]byte, NTYPE)
-    _, err = io.ReadFull(c.GetRawConn(), typeData)
-    if err != nil {
-      ec<- err
-      return
-    }
-    bc<- typeData
-  }(byteChan, errorChan)
+	go func(bc chan []byte, ec chan error) {
+		typeData := make([]byte, MessageTypeBytes)
+		_, err := io.ReadFull(raw, typeData)
+		if err != nil {
+			ec <- err
+			close(bc)
+			close(ec)
+			holmes.Debugln("go-routine read message type exited")
+			return
+		}
+		bc <- typeData
+	}(byteChan, errorChan)
 
-  var typeBytes []byte
+	var typeBytes []byte
 
-  select {
-  case <-c.GetCloseChannel():
-    return nil, ErrorConnClosed
+	select {
+	case err := <-errorChan:
+		return nil, err
 
-  case err = <-errorChan:
-    return nil, err
+	case typeBytes = <-byteChan:
+		if typeBytes == nil {
+			holmes.Warnln("read type bytes nil")
+			return nil, ErrBadData
+		}
+		typeBuf := bytes.NewReader(typeBytes)
+		var msgType int32
+		if err := binary.Read(typeBuf, binary.LittleEndian, &msgType); err != nil {
+			return nil, err
+		}
 
-  case typeBytes = <-byteChan:
-    typeBuf := bytes.NewReader(typeBytes)
-    var msgType int32
-    if err = binary.Read(typeBuf, binary.LittleEndian, &msgType); err != nil {
-      return nil, err
-    }
-    lengthBytes := make([]byte, NLEN)
-    _, err = io.ReadFull(c.GetRawConn(), lengthBytes)
-    if err != nil {
-      return nil, err
-    }
-    lengthBuf := bytes.NewReader(lengthBytes)
-    var msgLen uint32
-    if err = binary.Read(lengthBuf, binary.LittleEndian, &msgLen); err != nil {
-      return nil, err
-    }
-    if msgLen > MAXLEN {
-      holmes.Error("len %d, type %d", msgLen, msgType)
-      return nil, ErrorIllegalData
-    }
-    // read real application message
-    msgBytes := make([]byte, msgLen)
-    _, err = io.ReadFull(c.GetRawConn(), msgBytes)
-    if err != nil {
-      return nil, err
-    }
+		lengthBytes := make([]byte, MessageLenBytes)
+		_, err := io.ReadFull(raw, lengthBytes)
+		if err != nil {
+			return nil, err
+		}
+		lengthBuf := bytes.NewReader(lengthBytes)
+		var msgLen uint32
+		if err = binary.Read(lengthBuf, binary.LittleEndian, &msgLen); err != nil {
+			return nil, err
+		}
+		if msgLen > MessageMaxBytes {
+			holmes.Errorf("message(type %d) has bytes(%d) beyond max %d\n", msgType, msgLen, MessageMaxBytes)
+			return nil, ErrBadData
+		}
 
-    // deserialize message from bytes
-    unmarshaler := GetUnmarshaler(msgType)
-    if unmarshaler == nil {
-      return nil, Undefined(msgType)
-    }
-    return unmarshaler(msgBytes)
-  }
+		// read application data
+		msgBytes := make([]byte, msgLen)
+		_, err = io.ReadFull(raw, msgBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		// deserialize message from bytes
+		unmarshaler := GetUnmarshalFunc(msgType)
+		if unmarshaler == nil {
+			return nil, ErrUndefined(msgType)
+		}
+		return unmarshaler(msgBytes)
+	}
 }
 
 // Encode encodes the message into bytes data.
 func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
-  data, err := msg.Serialize()
-  if err != nil {
-    return nil, err
-  }
-  buf := new(bytes.Buffer)
-  binary.Write(buf, binary.LittleEndian, msg.MessageNumber())
-  binary.Write(buf, binary.LittleEndian, int32(len(data)))
-  buf.Write(data)
-  packet := buf.Bytes()
-  return packet, nil
+	data, err := msg.Serialize()
+	if err != nil {
+		return nil, err
+	}
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, msg.MessageNumber())
+	binary.Write(buf, binary.LittleEndian, int32(len(data)))
+	buf.Write(data)
+	packet := buf.Bytes()
+	return packet, nil
+}
+
+// ContextKey is the key type for putting context-related data.
+type contextKey string
+
+const (
+	// messageCtx is the key for Message context.
+	messageCtx contextKey = "message"
+	// serverCtx is the key for *TCPServer context.
+	serverCtx contextKey = "server"
+	// netIDCtx is the key for net ID context.
+	netIDCtx contextKey = "netid"
+)
+
+// NewContextWithMessage returns a new Context that carries message.
+func NewContextWithMessage(ctx context.Context, msg Message) context.Context {
+	return context.WithValue(ctx, messageCtx, msg)
+}
+
+// MessageFromContext extracts a message from a Context.
+func MessageFromContext(ctx context.Context) Message {
+	return ctx.Value(messageCtx).(Message)
+}
+
+// NewContextWithNetID returns a new Context that carries net ID.
+func NewContextWithNetID(ctx context.Context, netID int64) context.Context {
+	return context.WithValue(ctx, netIDCtx, netID)
+}
+
+// NetIDFromContext returns a net ID from a Context.
+func NetIDFromContext(ctx context.Context) int64 {
+	return ctx.Value(netIDCtx).(int64)
 }

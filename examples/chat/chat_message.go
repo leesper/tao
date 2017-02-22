@@ -1,46 +1,50 @@
 package chat
 
 import (
-  "errors"
-  "github.com/leesper/tao"
+	"context"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
 )
 
 const (
-  CHAT_MESSAGE int32 = 1
+	// ChatMessage is the message number of chat message.
+	ChatMessage int32 = 1
 )
 
-var ErrorNilData error = errors.New("Nil data")
-
-type ChatMessage struct {
-  Info string
+// Message defines the chat message.
+type Message struct {
+	Content string
 }
 
-func (cm ChatMessage) MessageNumber() int32 {
-  return CHAT_MESSAGE
+// MessageNumber returns the message number.
+func (cm Message) MessageNumber() int32 {
+	return ChatMessage
 }
 
-func (cm ChatMessage) Serialize() ([]byte, error) {
-  return []byte(cm.Info), nil
+// Serialize Serializes Message into bytes.
+func (cm Message) Serialize() ([]byte, error) {
+	return []byte(cm.Content), nil
 }
 
-func DeserializeChatMessage(data []byte) (message tao.Message, err error) {
-  if data == nil {
-    return nil, ErrorNilData
-  }
-  info := string(data)
-  msg := ChatMessage{
-    Info: info,
-  }
-  return msg, nil
+// DeserializeMessage deserializes bytes into Message.
+func DeserializeMessage(data []byte) (message tao.Message, err error) {
+	if data == nil {
+		return nil, tao.ErrNilData
+	}
+	content := string(data)
+	msg := Message{
+		Content: content,
+	}
+	return msg, nil
 }
 
-func ProcessChatMessage(ctx tao.Context, conn tao.Connection) {
-  if serverConn, ok := conn.(*tao.ServerConnection); ok {
-    if serverConn.GetOwner() != nil {
-      connections := serverConn.GetOwner().GetConnections()
-      for _, c := range connections {
-        c.Write(ctx.Message())
-      }
-    }
-  }
+// ProcessMessage handles the Message logic.
+func ProcessMessage(ctx context.Context, conn tao.WriteCloser) {
+	holmes.Infof("ProcessMessage")
+	s, ok := tao.ServerFromContext(ctx)
+	if ok {
+		msg := tao.MessageFromContext(ctx)
+		s.Broadcast(msg)
+	}
 }

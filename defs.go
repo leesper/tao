@@ -1,37 +1,147 @@
 package tao
 
 import (
-  "fmt"
-  "errors"
+	"context"
+	"errors"
+	"fmt"
+	"hash/fnv"
+	"os"
+	"reflect"
+	"runtime"
+	"time"
+	"unsafe"
 )
 
+// ErrUndefined for undefined message type.
+type ErrUndefined int32
+
+func (e ErrUndefined) Error() string {
+	return fmt.Sprintf("undefined message type %d", e)
+}
+
 var (
-  ErrorParameter error = errors.New("Parameter error")
-  ErrorNilKey error = errors.New("Nil key")
-  ErrorNilValue error = errors.New("Nil value")
-  ErrorWouldBlock error = errors.New("Would block")
-  ErrorNotHashable error = errors.New("Not hashable")
-  ErrorNilData error = errors.New("Nil data")
-  ErrorIllegalData error = errors.New("More than 8M data")
-  ErrorNotImplemented error = errors.New("Not implemented")
-  ErrorConnClosed error = errors.New("Connection closed")
+	// ErrParameter for parameter error.
+	ErrParameter = errors.New("parameter error")
+	// ErrNilKey for nil key.
+	ErrNilKey = errors.New("nil key")
+	// ErrNilValue for nil value.
+	ErrNilValue = errors.New("nil value")
+	// ErrWouldBlock for opertion may be blocked.
+	ErrWouldBlock = errors.New("would block")
+	// ErrNotHashable for type not hashable.
+	ErrNotHashable = errors.New("not hashable")
+	// ErrNilData for nil data.
+	ErrNilData = errors.New("nil data")
+	// ErrBadData for more than 8M data.
+	ErrBadData = errors.New("more than 8M data")
+	// ErrNotRegistered for message handler not registered.
+	ErrNotRegistered = errors.New("handler not registered")
+	// ErrServerClosed for connection closed by server.
+	ErrServerClosed = errors.New("server has been closed")
 )
 
 const (
-  WORKERS = 20
-  MAX_CONNECTIONS = 1000
+	// WorkersNum is the number of worker go-routines.
+	WorkersNum = 20
+	// MaxConnections is the maximum number of client connections allowed.
+	MaxConnections = 1000
 )
 
-func Undefined(msgType int32) error {
-  return ErrorUndefined{
-    msgType: msgType,
-  }
+type onConnectFunc func(WriteCloser) bool
+type onMessageFunc func(Message, WriteCloser)
+type onCloseFunc func(WriteCloser)
+type onErrorFunc func(WriteCloser)
+
+type workerFunc func()
+type onScheduleFunc func(time.Time, WriteCloser)
+
+// OnTimeOut represents a timed task.
+type OnTimeOut struct {
+	Callback func(time.Time, WriteCloser)
+	Ctx      context.Context
 }
 
-type ErrorUndefined struct{
-  msgType int32
+// NewOnTimeOut returns OnTimeOut.
+func NewOnTimeOut(ctx context.Context, cb func(time.Time, WriteCloser)) *OnTimeOut {
+	return &OnTimeOut{
+		Callback: cb,
+		Ctx:      ctx,
+	}
 }
 
-func (eu ErrorUndefined) Error() string {
-  return fmt.Sprintf("Undefined message %d", eu.msgType)
+// Hashable is a interface for hashable object.
+type Hashable interface {
+	HashCode() int32
+}
+
+const intSize = unsafe.Sizeof(1)
+
+func hashCode(k interface{}) uint32 {
+	var code uint32
+	h := fnv.New32a()
+	switch v := k.(type) {
+	case bool:
+		h.Write((*((*[1]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case int:
+		h.Write((*((*[intSize]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case int8:
+		h.Write((*((*[1]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case int16:
+		h.Write((*((*[2]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case int32:
+		h.Write((*((*[4]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case int64:
+		h.Write((*((*[8]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case uint:
+		h.Write((*((*[intSize]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case uint8:
+		h.Write((*((*[1]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case uint16:
+		h.Write((*((*[2]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case uint32:
+		h.Write((*((*[4]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case uint64:
+		h.Write((*((*[8]byte)(unsafe.Pointer(&v))))[:])
+		code = h.Sum32()
+	case string:
+		h.Write([]byte(v))
+		code = h.Sum32()
+	case Hashable:
+		c := v.HashCode()
+		h.Write((*((*[4]byte)(unsafe.Pointer(&c))))[:])
+		code = h.Sum32()
+	default:
+		panic("key not hashable")
+	}
+	return code
+}
+
+func isNil(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	kd := rv.Type().Kind()
+	switch kd {
+	case reflect.Ptr, reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
+
+func printStack() {
+	var buf [4096]byte
+	n := runtime.Stack(buf[:], false)
+	os.Stderr.Write(buf[:n])
 }

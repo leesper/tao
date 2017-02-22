@@ -1,57 +1,43 @@
 package main
 
 import (
-  "os"
-  "net"
-  "github.com/leesper/tao"
-  "github.com/leesper/tao/examples/pingpong"
-  "github.com/leesper/holmes"
+	"context"
+	"net"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
+	"github.com/leesper/tao/examples/pingpong"
 )
 
 var (
-  rspChan = make(chan string)
+	rspChan = make(chan string)
 )
 
 func main() {
-  defer holmes.Start().Stop()
+	defer holmes.Start().Stop()
 
-  tao.Register(pingpong.PINGPONG_MESSAGE, pingpong.DeserializePingPongMessage, ProcessPingPongMessage)
+	tao.Register(pingpong.PingPontMessage, pingpong.DeserializeMessage, ProcessPingPongMessage)
 
-  c, err := net.Dial("tcp", "127.0.0.1:18341")
-  if err != nil {
-    holmes.Fatal("%v", err)
-  }
+	c, err := net.Dial("tcp", "127.0.0.1:12346")
+	if err != nil {
+		holmes.Fatalln(err)
+	}
 
-  tcpConnection := tao.NewClientConnection(0, false, c, nil)
-  defer tcpConnection.Close()
+	conn := tao.NewClientConn(0, c)
+	defer conn.Close()
 
-  tcpConnection.SetOnConnectCallback(func(client tao.Connection) bool {
-    holmes.Info("%s", "On connect")
-    return true
-  })
-
-  tcpConnection.SetOnErrorCallback(func() {
-    holmes.Info("%s", "On error")
-  })
-
-  tcpConnection.SetOnCloseCallback(func(client tao.Connection) {
-    holmes.Info("On close")
-    os.Exit(0)
-  })
-
-  tcpConnection.Start()
-  req := pingpong.PingPongMessage{
-    Info: "ping",
-  }
-  for {
-      tcpConnection.Write(req)
-      // holmes.Info(<-rspChan)
-      <-rspChan
-  }
-  tcpConnection.Close()
+	conn.Start()
+	req := pingpong.Message{
+		Info: "ping",
+	}
+	for {
+		conn.Write(req)
+		holmes.Infoln(<-rspChan)
+	}
 }
 
-func ProcessPingPongMessage(ctx tao.Context, conn tao.Connection) {
-  rsp := ctx.Message().(pingpong.PingPongMessage)
-  rspChan<- rsp.Info
+// ProcessPingPongMessage handles business logic.
+func ProcessPingPongMessage(ctx context.Context, conn tao.WriteCloser) {
+	rsp := tao.MessageFromContext(ctx).(pingpong.Message)
+	rspChan <- rsp.Info
 }

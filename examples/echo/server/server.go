@@ -1,48 +1,56 @@
 package main
 
 import (
-  "runtime"
-  "github.com/leesper/tao"
-  "github.com/leesper/tao/examples/echo"
-  "github.com/leesper/holmes"
+	"net"
+	"runtime"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
+	"github.com/leesper/tao/examples/echo"
 )
 
+// EchoServer represents the echo server.
 type EchoServer struct {
-  tao.Server
+	*tao.Server
 }
 
-func NewEchoServer(addr string) *EchoServer {
-  return &EchoServer {
-    tao.NewTCPServer(addr),
-  }
+// NewEchoServer returns an EchoServer.
+func NewEchoServer() *EchoServer {
+	onConnect := tao.OnConnectOption(func(conn tao.WriteCloser) bool {
+		holmes.Infoln("on connect")
+		return true
+	})
+
+	onClose := tao.OnCloseOption(func(conn tao.WriteCloser) {
+		holmes.Infoln("closing client")
+	})
+
+	onError := tao.OnErrorOption(func(conn tao.WriteCloser) {
+		holmes.Infoln("on error")
+	})
+
+	onMessage := tao.OnMessageOption(func(msg tao.Message, conn tao.WriteCloser) {
+		holmes.Infoln("receving message")
+	})
+
+	return &EchoServer{
+		tao.NewServer(onConnect, onClose, onError, onMessage),
+	}
 }
 
 func main() {
-  defer holmes.Start().Stop()
+	defer holmes.Start().Stop()
 
-  runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
-  tao.Register(echo.EchoMessage{}.MessageNumber(), echo.DeserializeEchoMessage, echo.ProcessEchoMessage)
+	tao.Register(echo.Message{}.MessageNumber(), echo.DeserializeMessage, echo.ProcessMessage)
 
-  echoServer := NewEchoServer(":18342")
-  defer echoServer.Close()
+	l, err := net.Listen("tcp", ":12345")
+	if err != nil {
+		holmes.Fatalf("listen error %v", err)
+	}
+	echoServer := NewEchoServer()
+	defer echoServer.Stop()
 
-  echoServer.SetOnConnectCallback(func(client tao.Connection) bool {
-    holmes.Info("%v", "On connect")
-    return true
-  })
-
-  echoServer.SetOnErrorCallback(func() {
-    holmes.Info("%v", "On error")
-  })
-
-  echoServer.SetOnCloseCallback(func(client tao.Connection) {
-    holmes.Info("%v", "Closing client")
-  })
-
-  echoServer.SetOnMessageCallback(func(msg tao.Message, client tao.Connection) {
-    holmes.Info("%v", "Receving message")
-  })
-
-  echoServer.Start()
+	echoServer.Start(l)
 }
