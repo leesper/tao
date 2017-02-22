@@ -3,6 +3,25 @@ Tao --- 轻量级TCP异步框架，Go语言实现
 
 ## Light-weight TCP Asynchronous gOlang framework
 
+Announcing Tao 1.5 - Release Notes
+--------
+1. A Golang-style redesigning of the overall framework, a reduce about 500+ lines of codes;<br/>
+按照Go语言风格重新设计的整体框架，精简500多行代码；
+2. Providing new Server, ClientConn and ServerConn struct and a WriteCloser interface;<br/>
+提供Server，ClientConn和ServerConn三种新结构和WriteCloser新接口；
+3. Using standard context package to manage and spread request-scoped data acrossing go-routines;<br/>
+使用标准库中的context包在多个Go线程中管理和传播与请求有关的数据；
+4. Graceful stopping, all go-routines are related by context, and they will be noticed and exit when server stops or connection closes;<br/>
+优雅停机，所有的Go线程都通过上下文进行关联，当服务器停机或连接关闭时它们都会收到通知并执行退出；
+5. Providing new type HandlerFunc func(context.Context, WriteCloser) for defining message handlers;<br/>
+提供新的HandlerFunc类型来定义消息处理器；
+6. Developers can now use NewContextWithMessage() and MessageFromContext() to put and get message they are about to use in handler function's context, this also leads to a more clarified design;<br/>
+开发者现在可以通过NewContextWithMessage()和MessageFromContext()函数来在上下文中存取他们将在处理器函数中使用的消息，这样的设计更简洁；
+7. Go-routine functions readLoop(), writeLoop() and handleLoop() are all optimized to serve both ServerConn and ClientConn, serveral dead-lock bugs such as blocking on channels are fixed;<br/>
+优化Go线程函数readLoop()，writeLoop()和handleLoop()使得它们能同时为ServerConn和ClientConn服务，修复了多个“通道阻塞”的死锁问题；
+8. Reconnecting mechanism of ClientConn is redesigned and optimized;<br/>
+重新设计和优化ClientConn的断线重连机制；
+
 Announcing Tao 1.4 - Release Notes
 --------
 1. bugfix：TLS重连失败问题；<br/>
