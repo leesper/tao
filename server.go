@@ -163,8 +163,8 @@ func (s *Server) Unicast(id int64, msg Message) error {
 	return fmt.Errorf("conn %d not found", id)
 }
 
-// GetConn returns a server connection with specified ID.
-func (s *Server) GetConn(id int64) (*ServerConn, bool) {
+// Conn returns a server connection with specified ID.
+func (s *Server) Conn(id int64) (*ServerConn, bool) {
 	s.conns.RLock()
 	defer s.conns.RUnlock()
 	sc, ok := s.conns.m[id]
@@ -253,10 +253,10 @@ func (s *Server) Start(l net.Listener) error {
 			sc.Start()
 		}()
 
-		holmes.Infof("accepted client %s, id %d, total %d\n", sc.GetName(), netid, s.conns.Size())
+		holmes.Infof("accepted client %s, id %d, total %d\n", sc.Name(), netid, s.conns.Size())
 		s.conns.RLock()
 		for _, c := range s.conns.m {
-			holmes.Infof("client %s\n", c.GetName())
+			holmes.Infof("client %s\n", c.Name())
 		}
 		s.conns.RUnlock()
 	} // for loop
@@ -287,7 +287,7 @@ func (s *Server) Stop() {
 
 	for _, c := range conns {
 		c.rawConn.Close()
-		holmes.Infof("close client %s\n", c.GetName())
+		holmes.Infof("close client %s\n", c.Name())
 	}
 
 	s.mu.Lock()
@@ -311,7 +311,7 @@ func (s *Server) timeOutLoop() {
 		case <-s.ctx.Done():
 			return
 
-		case timeout := <-s.timing.GetTimeOutChannel():
+		case timeout := <-s.timing.TimeOutChannel():
 			netID := timeout.Ctx.Value(netIDCtx).(int64)
 			if sc, ok := s.conns.Get(netID); ok {
 				sc.timerCh <- timeout
