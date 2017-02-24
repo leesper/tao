@@ -1,7 +1,26 @@
-Tao --- 轻量级TCP异步框架，Go语言实现
+Tao --- 轻量级TCP异步框架，Go语言实现 v1.5.1
 ===========================================
 
 ## Light-weight TCP Asynchronous gOlang framework
+
+Announcing Tao 1.5 - Release Notes
+--------
+1. A Golang-style redesigning of the overall framework, a reduce about 500+ lines of codes;<br/>
+按照Go语言风格重新设计的整体框架，精简500多行代码；
+2. Providing new Server, ClientConn and ServerConn struct and a WriteCloser interface;<br/>
+提供Server，ClientConn和ServerConn三种新结构和WriteCloser新接口；
+3. Using standard context package to manage and spread request-scoped data acrossing go-routines;<br/>
+使用标准库中的context包在多个Go线程中管理和传播与请求有关的数据；
+4. Graceful stopping, all go-routines are related by context, and they will be noticed and exit when server stops or connection closes;<br/>
+优雅停机，所有的Go线程都通过上下文进行关联，当服务器停机或连接关闭时它们都会收到通知并执行退出；
+5. Providing new type HandlerFunc func(context.Context, WriteCloser) for defining message handlers;<br/>
+提供新的HandlerFunc类型来定义消息处理器；
+6. Developers can now use NewContextWithMessage() and MessageFromContext() to put and get message they are about to use in handler function's context, this also leads to a more clarified design;<br/>
+开发者现在可以通过NewContextWithMessage()和MessageFromContext()函数来在上下文中存取他们将在处理器函数中使用的消息，这样的设计更简洁；
+7. Go-routine functions readLoop(), writeLoop() and handleLoop() are all optimized to serve both ServerConn and ClientConn, serveral dead-lock bugs such as blocking on channels are fixed;<br/>
+优化Go线程函数readLoop()，writeLoop()和handleLoop()使得它们能同时为ServerConn和ClientConn服务，修复了多个“通道阻塞”的死锁问题；
+8. Reconnecting mechanism of ClientConn is redesigned and optimized;<br/>
+重新设计和优化ClientConn的断线重连机制；
 
 Announcing Tao 1.4 - Release Notes
 --------
@@ -100,7 +119,8 @@ Application-level heart-beating protocol;
 
 ### Documentation
 1. [Tao - Go语言实现的TCP网络编程框架](http://www.jianshu.com/p/c322edca985f)
-2. English(TBD)
+2. [Tao Framework API Reference](https://github.com/leesper/tao/blob/master/DOCUMENTATION.md)
+3. English(TBD)
 
 ### Chat Server Example
 
@@ -108,45 +128,49 @@ Application-level heart-beating protocol;
 package main
 
 import (
-  "fmt"
-  "runtime"
-  "github.com/leesper/tao"
-  "github.com/leesper/tao/examples/chat"
-  "github.com/leesper/holmes"
+	"fmt"
+	"net"
+
+	"github.com/leesper/holmes"
+	"github.com/leesper/tao"
+	"github.com/leesper/tao/examples/chat"
 )
 
+// ChatServer is the chatting server.
 type ChatServer struct {
-  tao.Server
+	*tao.Server
 }
 
-func NewChatServer(addr string) *ChatServer {
-  return &ChatServer {
-    tao.NewTCPServer(addr),
-  }
+// NewChatServer returns a ChatServer.
+func NewChatServer() *ChatServer {
+	onConnectOption := tao.OnConnectOption(func(conn tao.WriteCloser) bool {
+		holmes.Infoln("on connect")
+		return true
+	})
+	onErrorOption := tao.OnErrorOption(func(conn tao.WriteCloser) {
+		holmes.Infoln("on error")
+	})
+	onCloseOption := tao.OnCloseOption(func(conn tao.WriteCloser) {
+		holmes.Infoln("close chat client")
+	})
+	return &ChatServer{
+		tao.NewServer(onConnectOption, onErrorOption, onCloseOption),
+	}
 }
 
 func main() {
-  runtime.GOMAXPROCS(runtime.NumCPU())
-  defer holmes.Start().Stop()
-  tao.MonitorOn(12345)
+	defer holmes.Start().Stop()
 
-  tao.Register(chat.CHAT_MESSAGE, chat.DeserializeChatMessage, chat.ProcessChatMessage)
+	tao.Register(chat.ChatMessage, chat.DeserializeMessage, chat.ProcessMessage)
 
-  chatServer := NewChatServer(fmt.Sprintf("%s:%d", "0.0.0.0", 18341))
-
-  chatServer.SetOnConnectCallback(func(conn tao.Connection) bool {
-    holmes.Info("%s", "On connect")
-    return true
-  })
-
-  chatServer.SetOnErrorCallback(func() {
-    holmes.Info("%s", "On error")
-  })
-
-  chatServer.SetOnCloseCallback(func(conn tao.Connection) {
-    holmes.Info("%s", "Closing chat client")
-  })
-
-  chatServer.Start()
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", "0.0.0.0", 12345))
+	if err != nil {
+		holmes.Fatalln("listen error", err)
+	}
+	chatServer := NewChatServer()
+	err = chatServer.Start(l)
+	if err != nil {
+		holmes.Fatalln("start error", err)
+	}
 }
 ```

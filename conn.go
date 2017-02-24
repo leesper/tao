@@ -653,15 +653,18 @@ func writeLoop(c WriteCloser, wg *sync.WaitGroup) {
 			holmes.Errorf("panics: %v\n", p)
 		}
 		// drain all pending messages before exit
-		select {
-		case pkt = <-sendCh:
-			if pkt != nil {
-				if _, err = rawConn.Write(pkt); err != nil {
-					holmes.Errorf("error writing data %v\n", err)
+	OuterFor:
+		for {
+			select {
+			case pkt = <-sendCh:
+				if pkt != nil {
+					if _, err = rawConn.Write(pkt); err != nil {
+						holmes.Errorf("error writing data %v\n", err)
+					}
 				}
+			default:
+				break OuterFor
 			}
-		default:
-			break
 		}
 		wg.Done()
 		holmes.Debugln("writeLoop go-routine exited")
