@@ -19,25 +19,17 @@ func (e ErrUndefined) Error() string {
 	return fmt.Sprintf("undefined message type %d", e)
 }
 
+// Error codes returned by failures dealing with server or connection.
 var (
-	// ErrParameter for parameter error.
-	ErrParameter = errors.New("parameter error")
-	// ErrNilKey for nil key.
-	ErrNilKey = errors.New("nil key")
-	// ErrNilValue for nil value.
-	ErrNilValue = errors.New("nil value")
-	// ErrWouldBlock for opertion may be blocked.
-	ErrWouldBlock = errors.New("would block")
-	// ErrNotHashable for type not hashable.
-	ErrNotHashable = errors.New("not hashable")
-	// ErrNilData for nil data.
-	ErrNilData = errors.New("nil data")
-	// ErrBadData for more than 8M data.
-	ErrBadData = errors.New("more than 8M data")
-	// ErrNotRegistered for message handler not registered.
+	ErrParameter     = errors.New("parameter error")
+	ErrNilKey        = errors.New("nil key")
+	ErrNilValue      = errors.New("nil value")
+	ErrWouldBlock    = errors.New("would block")
+	ErrNotHashable   = errors.New("not hashable")
+	ErrNilData       = errors.New("nil data")
+	ErrBadData       = errors.New("more than 8M data")
 	ErrNotRegistered = errors.New("handler not registered")
-	// ErrServerClosed for connection closed by server.
-	ErrServerClosed = errors.New("server has been closed")
+	ErrServerClosed  = errors.New("server has been closed")
 )
 
 const (

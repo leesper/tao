@@ -231,13 +231,11 @@ func (codec TypeLengthValueCodec) Encode(msg Message) ([]byte, error) {
 // ContextKey is the key type for putting context-related data.
 type contextKey string
 
+// Context keys for messge, server and net ID.
 const (
-	// messageCtx is the key for Message context.
 	messageCtx contextKey = "message"
-	// serverCtx is the key for *TCPServer context.
-	serverCtx contextKey = "server"
-	// netIDCtx is the key for net ID context.
-	netIDCtx contextKey = "netid"
+	serverCtx  contextKey = "server"
+	netIDCtx   contextKey = "netid"
 )
 
 // NewContextWithMessage returns a new Context that carries message.
