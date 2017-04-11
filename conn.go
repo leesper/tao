@@ -187,7 +187,7 @@ func (sc *ServerConn) Close() {
 		close(sc.handlerCh)
 		close(sc.timerCh)
 
-		// tell server I'm done.
+		// tell server I'm done :( .
 		sc.belong.wg.Done()
 	})
 }

@@ -248,7 +248,7 @@ func (s *Server) Start(l net.Listener) error {
 		s.conns.Put(netid, sc)
 		addTotalConn(1)
 
-		s.wg.Add(1)
+		s.wg.Add(1) // this will be Done() in ServerConn.Close()
 		go func() {
 			sc.Start()
 		}()
