@@ -77,8 +77,8 @@ func ServerFromContext(ctx context.Context) (*Server, bool) {
 	return server, ok
 }
 
-// GetNetID returns net ID of server connection.
-func (sc *ServerConn) GetNetID() int64 {
+// NetID returns net ID of server connection.
+func (sc *ServerConn) NetID() int64 {
 	return sc.netid
 }
 
@@ -89,8 +89,8 @@ func (sc *ServerConn) SetName(name string) {
 	sc.name = name
 }
 
-// GetName returns the name of server connection.
-func (sc *ServerConn) GetName() string {
+// Name returns the name of server connection.
+func (sc *ServerConn) Name() string {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	name := sc.name
@@ -104,8 +104,8 @@ func (sc *ServerConn) SetHeartBeat(heart int64) {
 	sc.heart = heart
 }
 
-// GetHeartBeat returns the heart beats of server connection.
-func (sc *ServerConn) GetHeartBeat() int64 {
+// HeartBeat returns the heart beats of server connection.
+func (sc *ServerConn) HeartBeat() int64 {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	heart := sc.heart
@@ -119,8 +119,8 @@ func (sc *ServerConn) SetContextValue(k, v interface{}) {
 	sc.ctx = context.WithValue(sc.ctx, k, v)
 }
 
-// GetContextValue gets extra data from server connection.
-func (sc *ServerConn) GetContextValue(k interface{}) interface{} {
+// ContextValue gets extra data from server connection.
+func (sc *ServerConn) ContextValue(k interface{}) interface{} {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	return sc.ctx.Value(k)
@@ -305,8 +305,8 @@ func newClientConnWithOptions(netid int64, c net.Conn, opts options) *ClientConn
 	return cc
 }
 
-// GetNetID returns the net ID of client connection.
-func (cc *ClientConn) GetNetID() int64 {
+// NetID returns the net ID of client connection.
+func (cc *ClientConn) NetID() int64 {
 	return cc.netid
 }
 
@@ -317,8 +317,8 @@ func (cc *ClientConn) SetName(name string) {
 	cc.mu.Unlock()
 }
 
-// GetName gets the name of client connection.
-func (cc *ClientConn) GetName() string {
+// Name gets the name of client connection.
+func (cc *ClientConn) Name() string {
 	cc.mu.Lock()
 	name := cc.name
 	cc.mu.Unlock()
@@ -332,8 +332,8 @@ func (cc *ClientConn) SetHeartBeat(heart int64) {
 	cc.mu.Unlock()
 }
 
-// GetHeartBeat gets the heart beats of client connection.
-func (cc *ClientConn) GetHeartBeat() int64 {
+// HeartBeat gets the heart beats of client connection.
+func (cc *ClientConn) HeartBeat() int64 {
 	cc.mu.Lock()
 	heart := cc.heart
 	cc.mu.Unlock()
@@ -347,8 +347,8 @@ func (cc *ClientConn) SetContextValue(k, v interface{}) {
 	cc.ctx = context.WithValue(cc.ctx, k, v)
 }
 
-// GetContextValue gets extra data from client connection.
-func (cc *ClientConn) GetContextValue(k interface{}) interface{} {
+// ContextValue gets extra data from client connection.
+func (cc *ClientConn) ContextValue(k interface{}) interface{} {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()
 	return cc.ctx.Value(k)

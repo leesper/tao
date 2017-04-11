@@ -115,8 +115,8 @@ func NewTimingWheel(ctx context.Context) *TimingWheel {
 	return timingWheel
 }
 
-// GetTimeOutChannel returns the timeout channel.
-func (tw *TimingWheel) GetTimeOutChannel() chan *OnTimeOut {
+// TimeOutChannel returns the timeout channel.
+func (tw *TimingWheel) TimeOutChannel() chan *OnTimeOut {
 	return tw.timeOutChan
 }
 
@@ -198,7 +198,7 @@ func (tw *TimingWheel) start() {
 		case <-tw.ticker.C:
 			timers := tw.getExpired()
 			for _, t := range timers {
-				tw.GetTimeOutChannel() <- t.timeout
+				tw.TimeOutChannel() <- t.timeout
 			}
 			tw.update(timers)
 		}
