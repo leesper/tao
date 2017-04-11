@@ -2,7 +2,10 @@ package main
 
 import (
 	"net"
+	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 
 	"github.com/leesper/holmes"
 	"github.com/leesper/tao"
@@ -50,7 +53,13 @@ func main() {
 		holmes.Fatalf("listen error %v", err)
 	}
 	echoServer := NewEchoServer()
-	defer echoServer.Stop()
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+		<-c
+		echoServer.Stop()
+	}()
 
 	echoServer.Start(l)
 }

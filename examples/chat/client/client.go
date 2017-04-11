@@ -63,7 +63,6 @@ func main() {
 				holmes.Infoln("error", err)
 			}
 		}
-		conn.Close()
 	}
 	fmt.Println("goodbye")
 }
