@@ -282,8 +282,8 @@ func (s *Server) Stop() {
 	for k, v := range s.conns.m {
 		conns[k] = v
 	}
-	s.conns.Clear()
 	s.conns.RUnlock()
+	s.conns.Clear()
 
 	for _, c := range conns {
 		c.rawConn.Close()
