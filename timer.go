@@ -155,7 +155,7 @@ func (tw *TimingWheel) getExpired() []*timerType {
 		if delta <= -1.0 {
 			holmes.Warnf("delta %f\n", delta)
 		}
-		if -1.0 < delta && delta <= 0.0 {
+		if delta <= 0.0 {
 			expired = append(expired, timer)
 			continue
 		} else {
