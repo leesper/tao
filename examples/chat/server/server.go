@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/leesper/holmes"
 	"github.com/leesper/tao"
@@ -41,8 +44,13 @@ func main() {
 		holmes.Fatalln("listen error", err)
 	}
 	chatServer := NewChatServer()
-	err = chatServer.Start(l)
-	if err != nil {
-		holmes.Fatalln("start error", err)
-	}
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+		<-c
+		chatServer.Stop()
+	}()
+
+	holmes.Infoln(chatServer.Start(l))
 }
