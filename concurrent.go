@@ -351,3 +351,14 @@ func (cm *ConnMap) Size() int {
 func (cm *ConnMap) IsEmpty() bool {
 	return cm.Size() <= 0
 }
+
+// IDs returns all net IDs of ConnMap.
+func (cm *ConnMap) IDs() []int64 {
+	var ids []int64
+	cm.RLock()
+	for id := range cm.m {
+		ids = append(ids, id)
+	}
+	cm.Unlock()
+	return ids
+}
