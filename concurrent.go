@@ -359,6 +359,6 @@ func (cm *ConnMap) IDs() []int64 {
 	for id := range cm.m {
 		ids = append(ids, id)
 	}
-	cm.Unlock()
+	cm.RUnlock()
 	return ids
 }
