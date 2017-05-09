@@ -13,7 +13,8 @@ Server represents a TCP server with various ServerOption supported.
 2. Provides TLS server by TLSCredsOption;
 3. Provides callback on connected by OnConnectOption;
 4. Provides callback on meesage arrived by OnMessageOption;
-5. Provides callback on closed by OnCloseOption; 6. Provides callback on error occurred by OnErrorOption;
+5. Provides callback on closed by OnCloseOption;
+6. Provides callback on error occurred by OnErrorOption;
 
 ServerConn represents a connection on the server side.
 
