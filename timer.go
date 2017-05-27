@@ -9,6 +9,11 @@ import (
 	"github.com/leesper/holmes"
 )
 
+const (
+	tickPeriod time.Duration = 500 * time.Millisecond
+	bufferSize               = 1024
+)
+
 var timerIds *AtomicInt64
 
 func init() {
@@ -97,12 +102,12 @@ type TimingWheel struct {
 // NewTimingWheel returns a *TimingWheel ready for use.
 func NewTimingWheel(ctx context.Context) *TimingWheel {
 	timingWheel := &TimingWheel{
-		timeOutChan: make(chan *OnTimeOut, 1024),
+		timeOutChan: make(chan *OnTimeOut, bufferSize),
 		timers:      make(timerHeapType, 0),
-		ticker:      time.NewTicker(500 * time.Millisecond),
+		ticker:      time.NewTicker(tickPeriod),
 		wg:          &sync.WaitGroup{},
-		addChan:     make(chan *timerType, 1024),
-		cancelChan:  make(chan int64, 1024),
+		addChan:     make(chan *timerType, bufferSize),
+		cancelChan:  make(chan int64, bufferSize),
 		sizeChan:    make(chan int),
 	}
 	timingWheel.ctx, timingWheel.cancel = context.WithCancel(ctx)
@@ -151,7 +156,7 @@ func (tw *TimingWheel) getExpired() []*timerType {
 	now := time.Now()
 	for tw.timers.Len() > 0 {
 		timer := heap.Pop(&tw.timers).(*timerType)
-		delta := float64(timer.expiration.UnixNano()-now.UnixNano()) / 1e9
+		delta := timer.expiration.Sub(now).Seconds()
 		if delta <= -1.0 {
 			holmes.Warnf("delta %f\n", delta)
 		}
@@ -169,8 +174,22 @@ func (tw *TimingWheel) getExpired() []*timerType {
 func (tw *TimingWheel) update(timers []*timerType) {
 	if timers != nil {
 		for _, t := range timers {
-			if t.isRepeat() {
-				t.expiration = t.expiration.Add(t.interval)
+			if t.isRepeat() { // repeatable timer task
+				/*
+					If interval <= tickPeriod(about 500ms), then this task will always time
+					out when timer woke up next time. Otherwise if interval > tickPeriod,
+					we have to update expiration with interval multiple times to make the
+					expiration happens in future. This prevents from an always-expired task
+					executing forever in case the system clock is corrected by network time service(NTP).
+				*/
+				if t.interval <= tickPeriod {
+					t.expiration = t.expiration.Add(t.interval)
+				} else {
+					now := time.Now()
+					for t.expiration.Before(now) {
+						t.expiration = t.expiration.Add(t.interval)
+					}
+				}
 				heap.Push(&tw.timers, t)
 			}
 		}
