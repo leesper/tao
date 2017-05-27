@@ -153,14 +153,13 @@ func (tw *TimingWheel) Stop() {
 
 func (tw *TimingWheel) getExpired() []*timerType {
 	expired := make([]*timerType, 0)
-	now := time.Now()
 	for tw.timers.Len() > 0 {
 		timer := heap.Pop(&tw.timers).(*timerType)
-		delta := timer.expiration.Sub(now).Seconds()
-		if delta <= -1.0 {
-			holmes.Warnf("delta %f\n", delta)
+		elapsed := time.Since(timer.expiration).Seconds()
+		if elapsed > 1.0 {
+			holmes.Warnf("elapsed %f\n", elapsed)
 		}
-		if delta <= 0.0 {
+		if elapsed > 0.0 {
 			expired = append(expired, timer)
 			continue
 		} else {
@@ -175,20 +174,11 @@ func (tw *TimingWheel) update(timers []*timerType) {
 	if timers != nil {
 		for _, t := range timers {
 			if t.isRepeat() { // repeatable timer task
-				/*
-					If interval <= tickPeriod(about 500ms), then this task will always time
-					out when timer woke up next time. Otherwise if interval > tickPeriod,
-					we have to update expiration with interval multiple times to make the
-					expiration happens in future. This prevents from an always-expired task
-					executing forever in case the system clock is corrected by network time service(NTP).
-				*/
-				if t.interval <= tickPeriod {
-					t.expiration = t.expiration.Add(t.interval)
-				} else {
-					now := time.Now()
-					for t.expiration.Before(now) {
-						t.expiration = t.expiration.Add(t.interval)
-					}
+				t.expiration = t.expiration.Add(t.interval)
+				// if task time out for at least 10 seconds, the expiration time needs
+				// to be updated in case this task executes every time timer wakes up.
+				if time.Since(t.expiration).Seconds() >= 10.0 {
+					t.expiration = time.Now()
 				}
 				heap.Push(&tw.timers, t)
 			}
