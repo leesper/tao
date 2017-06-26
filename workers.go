@@ -18,10 +18,6 @@ var (
 	globalWorkerPool *WorkerPool
 )
 
-func init() {
-	globalWorkerPool = newWorkerPool(WorkersNum)
-}
-
 // WorkerPoolInstance returns the global pool.
 func WorkerPoolInstance() *WorkerPool {
 	return globalWorkerPool
@@ -29,7 +25,7 @@ func WorkerPoolInstance() *WorkerPool {
 
 func newWorkerPool(vol int) *WorkerPool {
 	if vol <= 0 {
-		vol = WorkersNum
+		vol = defaultWorkersNum
 	}
 
 	pool := &WorkerPool{
@@ -56,6 +52,11 @@ func (wp *WorkerPool) Put(k interface{}, cb func()) error {
 // Close closes the pool, stopping it from executing functions.
 func (wp *WorkerPool) Close() {
 	close(wp.closeChan)
+}
+
+// Size returns the size of pool.
+func (wp *WorkerPool) Size() int {
+	return len(wp.workers)
 }
 
 type worker struct {

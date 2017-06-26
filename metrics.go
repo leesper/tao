@@ -69,7 +69,7 @@ func calculateQPS() {
 
 	if float64(totalConn)*totalTime != 0 {
 		// take the average time per worker go-routine
-		qps := float64(totalHandle) / (float64(totalConn) * (totalTime / float64(WorkersNum)))
+		qps := float64(totalHandle) / (float64(totalConn) * (totalTime / float64(WorkerPoolInstance().Size())))
 		qpsExported.Set(qps)
 	}
 }
