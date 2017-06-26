@@ -33,10 +33,10 @@ var (
 )
 
 const (
+	// MaxConnections is the maximum number of client connections allowed.
+	MaxConnections    = 1000
 	chanSize          = 1024
 	defaultWorkersNum = 20
-	// MaxConnections is the maximum number of client connections allowed.
-	MaxConnections = 1000
 )
 
 type onConnectFunc func(WriteCloser) bool
