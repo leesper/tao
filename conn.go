@@ -509,17 +509,16 @@ func runEvery(ctx context.Context, netID int64, timing *TimingWheel, d time.Dura
 	return timing.AddTimer(delay, d, timeout)
 }
 
-func asyncWrite(c interface{}, m Message) error {
-	defer func() error {
+func asyncWrite(c interface{}, m Message) (err error) {
+	defer func() {
 		if p := recover(); p != nil {
-			return ErrServerClosed
+			err = ErrServerClosed
 		}
-		return nil
+		err = nil
 	}()
 
 	var (
 		pkt    []byte
-		err    error
 		sendCh chan []byte
 	)
 	switch c := c.(type) {
@@ -534,15 +533,16 @@ func asyncWrite(c interface{}, m Message) error {
 
 	if err != nil {
 		holmes.Errorf("asyncWrite error %v\n", err)
-		return err
+		return
 	}
 
 	select {
 	case sendCh <- pkt:
-		return nil
+		err = nil
 	default:
-		return ErrWouldBlock
+		err = ErrWouldBlock
 	}
+	return
 }
 
 /* readLoop() blocking read from connection, deserialize bytes into message,
@@ -700,6 +700,7 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 		netID        int64
 		ctx          context.Context
 		askForWorker bool
+		err          error
 	)
 
 	switch c := c.(type) {
@@ -741,9 +742,12 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 			msg, handler := msgHandler.message, msgHandler.handler
 			if handler != nil {
 				if askForWorker {
-					WorkerPoolInstance().Put(netID, func() {
+					err = WorkerPoolInstance().Put(netID, func() {
 						handler(NewContextWithNetID(NewContextWithMessage(ctx, msg), netID), c)
 					})
+					if err != nil {
+						holmes.Errorln(err)
+					}
 					addTotalHandle()
 				} else {
 					handler(NewContextWithNetID(NewContextWithMessage(ctx, msg), netID), c)
@@ -756,9 +760,12 @@ func handleLoop(c WriteCloser, wg *sync.WaitGroup) {
 					holmes.Errorf("timeout net %d, conn net %d, mismatched!\n", timeoutNetID, netID)
 				}
 				if askForWorker {
-					WorkerPoolInstance().Put(netID, func() {
+					err = WorkerPoolInstance().Put(netID, func() {
 						timeout.Callback(time.Now(), c.(WriteCloser))
 					})
+					if err != nil {
+						holmes.Errorln(err)
+					}
 				} else {
 					timeout.Callback(time.Now(), c.(WriteCloser))
 				}
