@@ -25,15 +25,15 @@ var (
 )
 
 type options struct {
-	tlsCfg        *tls.Config
-	codec         Codec
-	onConnect     onConnectFunc
-	onMessage     onMessageFunc
-	onClose       onCloseFunc
-	onError       onErrorFunc
-	workerSize    int  // numbers of worker go-routines
-	loadIndicator int  // multiples of channel size(1024)
-	reconnect     bool // for ClientConn use only
+	tlsCfg     *tls.Config
+	codec      Codec
+	onConnect  onConnectFunc
+	onMessage  onMessageFunc
+	onClose    onCloseFunc
+	onError    onErrorFunc
+	workerSize int  // numbers of worker go-routines
+	bufferSize int  // size of buffered channel
+	reconnect  bool // for ClientConn use only
 }
 
 // ServerOption sets server options.
@@ -69,11 +69,11 @@ func WorkerSizeOption(workerSz int) ServerOption {
 	}
 }
 
-// LoadIndicatorOption returns a ServerOption that is the indicator of channel size,
-// for example an indicator of 2 means a channel size of 2 * 1024 = 2048.
-func LoadIndicatorOption(indicator int) ServerOption {
+// BufferSizeOption returns a ServerOption that is the size of buffered channel,
+// for example an indicator of BufferSize256 means a size of 256.
+func BufferSizeOption(indicator int) ServerOption {
 	return func(o *options) {
-		o.loadIndicator = indicator
+		o.bufferSize = indicator
 	}
 }
 
@@ -138,8 +138,8 @@ func NewServer(opt ...ServerOption) *Server {
 	if opts.workerSize <= 0 {
 		opts.workerSize = defaultWorkersNum
 	}
-	if opts.loadIndicator <= 0 {
-		opts.loadIndicator = 1
+	if opts.bufferSize <= 0 {
+		opts.bufferSize = BufferSize256
 	}
 
 	// initiates go-routine pool instance

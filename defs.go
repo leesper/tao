@@ -35,7 +35,10 @@ var (
 const (
 	// MaxConnections is the maximum number of client connections allowed.
 	MaxConnections    = 1000
-	chanSize          = 1024
+	BufferSize128     = 128
+	BufferSize256     = 256
+	BufferSize512     = 512
+	BufferSize1024    = 1024
 	defaultWorkersNum = 20
 )
 

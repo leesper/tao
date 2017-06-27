@@ -60,9 +60,9 @@ func NewServerConn(id int64, s *Server, c net.Conn) *ServerConn {
 		rawConn:   c,
 		once:      &sync.Once{},
 		wg:        &sync.WaitGroup{},
-		sendCh:    make(chan []byte, s.opts.loadIndicator*chanSize),
-		handlerCh: make(chan MessageHandler, s.opts.loadIndicator*chanSize),
-		timerCh:   make(chan *OnTimeOut, s.opts.loadIndicator*chanSize),
+		sendCh:    make(chan []byte, s.opts.bufferSize),
+		handlerCh: make(chan MessageHandler, s.opts.bufferSize),
+		timerCh:   make(chan *OnTimeOut, s.opts.bufferSize),
 		heart:     time.Now().UnixNano(),
 	}
 	sc.ctx, sc.cancel = context.WithCancel(context.WithValue(s.ctx, serverCtx, s))
@@ -294,8 +294,8 @@ func newClientConnWithOptions(netid int64, c net.Conn, opts options) *ClientConn
 		rawConn:   c,
 		once:      &sync.Once{},
 		wg:        &sync.WaitGroup{},
-		sendCh:    make(chan []byte, opts.loadIndicator*chanSize),
-		handlerCh: make(chan MessageHandler, opts.loadIndicator*chanSize),
+		sendCh:    make(chan []byte, opts.bufferSize),
+		handlerCh: make(chan MessageHandler, opts.bufferSize),
 		heart:     time.Now().UnixNano(),
 	}
 	cc.ctx, cc.cancel = context.WithCancel(context.Background())
@@ -514,7 +514,6 @@ func asyncWrite(c interface{}, m Message) (err error) {
 		if p := recover(); p != nil {
 			err = ErrServerClosed
 		}
-		err = nil
 	}()
 
 	var (

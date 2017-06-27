@@ -63,10 +63,16 @@ const (
     // MessageMaxBytes is the maximum bytes allowed for application data.
     MessageMaxBytes = 1 << 23 // 8M
 )
+
 const (
     // MaxConnections is the maximum number of client connections allowed.
     MaxConnections = 1000
+    BufferSize128  = 128
+    BufferSize256  = 256
+    BufferSize512  = 512
+    BufferSize1024 = 1024
 )
+
 const (
     // HeartBeat is the default heart beat message number.
     HeartBeat = 0
