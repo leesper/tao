@@ -814,6 +814,12 @@ ServerOption sets server options.
 type ServerOption func(*options)
 ```
 
+## func BufferSizeOption
+```go
+func BufferSizeOption(indicator int) ServerOption
+```
+BufferSizeOption returns a ServerOption that is the size of buffered channel, for example an indicator of BufferSize256 means a size of 256.
+
 ## func CustomCodecOption
 ```go
 func CustomCodecOption(codec Codec) ServerOption
@@ -855,6 +861,12 @@ ReconnectOption returns a ServerOption that will make ClientConn reconnectable.
 func TLSCredsOption(config *tls.Config) ServerOption
 ```
 TLSCredsOption returns a ServerOption that will set TLS credentials for server connections.
+
+## func WorkerSizeOption
+```go
+func WorkerSizeOption(workerSz int) ServerOption
+```
+WorkerSizeOption returns a ServerOption that will set the number of go-routines in WorkerPool.
 
 ## type TimingWheel
 
