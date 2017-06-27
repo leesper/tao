@@ -283,6 +283,9 @@ func NewClientConn(netid int64, c net.Conn, opt ...ServerOption) *ClientConn {
 	if opts.codec == nil {
 		opts.codec = TypeLengthValueCodec{}
 	}
+	if opts.bufferSize <= 0 {
+		opts.bufferSize = BufferSize256
+	}
 	return newClientConnWithOptions(netid, c, opts)
 }
 
