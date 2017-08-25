@@ -30,7 +30,7 @@ writeLoop()函数退出前将所有的网络数据包发送完毕；
 11. Use the standard sync.Map instead of map guarded by rwmutex;<br/>
 使用标准库中的sync.Map替换使用rwmutex保护的map；
 
-Announcing Tao 1.5 - Release Notes
+Announcing Tao 1.5.0 - Release Notes
 --------
 1. A Golang-style redesigning of the overall framework, a reduce about 500+ lines of codes;<br/>
 按照Go语言风格重新设计的整体框架，精简500多行代码；
@@ -49,7 +49,7 @@ Announcing Tao 1.5 - Release Notes
 8. Reconnecting mechanism of ClientConn is redesigned and optimized;<br/>
 重新设计和优化ClientConn的断线重连机制；
 
-Announcing Tao 1.4 - Release Notes
+Announcing Tao 1.4.0 - Release Notes
 --------
 1. bugfix：TLS重连失败问题；<br/>
 bugfix: failed to reconnect the TLS connection;
@@ -62,7 +62,7 @@ Optimize the closing process of server;
 5. 更优雅的消息处理注册接口；<br/>
 More elegant message handler register interface;
 
-Announcing Tao 1.3 - Release Notes
+Announcing Tao 1.3.0 - Release Notes
 --------
 1. bugfix：修复断线重连状态不一致问题；<br/>
 bugfix: fixed inconsistent status caused by reconnecting;
@@ -85,7 +85,7 @@ Add metrics.go: exporting critical server information based on expvar standard p
 10. 编写中文版框架设计原理文档，英文版正在翻译中；<br/>
 A document about framework designing principles in Chinese, English version under developed;
 
-Announcing Tao 1.2 - Release Notes
+Announcing Tao 1.2.0 - Release Notes
 --------
 1. 更优雅的消息注册接口；<br/>
 More elegant message register interface;
@@ -116,7 +116,7 @@ Refactoring Server and Connection, adopting a programming-by-interface design;
 14. 设置500毫秒读超时，防止readLoop()发生阻塞；<br/>
 Setting 500ms read-timeout prevents readLoop() from blocking;
 
-Announcing Tao 1.1 - Release Notes
+Announcing Tao 1.1.0 - Release Notes
 --------
 1. 添加注释，提高代码可读性；<br/>
 Add comments, make it more readable;
@@ -129,7 +129,7 @@ New Feature: SetOnScheduleCallback() make scheduled task managed by framwork use
 5. 新特性：支持默认的消息编解码器TypeLengthValueCodec，并允许框架使用者开发自定义编解码器； <br/>
 Support TypeLengthValueCodec by default, while allowing framework users develop  their own codecs;
 
-Announcing Tao 1.0 - Release Notes
+Announcing Tao 1.0.0 - Release Notes
 --------
 1. 完全异步的读，写以及消息处理；<br/>
 Completely asynchronous reading, writing and message handling;
