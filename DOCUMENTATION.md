@@ -456,60 +456,6 @@ type Codec interface {
     Encode(Message) ([]byte, error)
 }
 ```
-
-## type ConnMap
-
-ConnMap is a safe map for server connection management.
-
-```go
-type ConnMap struct {
-    sync.RWMutex
-    // contains filtered or unexported fields
-}
-```
-
-## func NewConnMap
-```go
-func NewConnMap() *ConnMap
-```
-NewConnMap returns a new ConnMap.
-
-## func (\*ConnMap) Clear
-```go
-func (cm *ConnMap) Clear()
-```
-Clear clears all elements in map.
-
-## func (\*ConnMap) Get
-```go
-func (cm *ConnMap) Get(id int64) (*ServerConn, bool)
-```
-Get gets a server connection with specified net ID.
-
-## func (\*ConnMap) IsEmpty
-```go
-func (cm *ConnMap) IsEmpty() bool
-```
-IsEmpty tells whether ConnMap is empty.
-
-## func (\*ConnMap) Put
-```go
-func (cm *ConnMap) Put(id int64, sc *ServerConn)
-```
-Put puts a server connection with specified net ID in map.
-
-## func (\*ConnMap) Remove
-```go
-func (cm *ConnMap) Remove(id int64)
-```
-Remove removes a server connection with specified net ID.
-
-## func (\*ConnMap) Size
-```go
-func (cm *ConnMap) Size() int
-```
-Size returns map size.
-
 ## type ErrUndefined
 
 ErrUndefined for undefined message type.
@@ -654,17 +600,17 @@ func (s *Server) Broadcast(msg Message)
 ```
 Broadcast broadcasts message to all server connections managed.
 
-## func (\*Server) ConnsMap
+## func (\*Server) Conn
 ```go
-func (s *Server) ConnsMap() *ConnMap
+func (s *Server) Conn(id int64) (*ServerConn, bool)
 ```
-ConnsMap returns connections managed.
+Conn returns a server connection with specified ID.
 
-## func (\*Server) GetConn
+## func (\*Server) ConnsSize
 ```go
-func (s *Server) GetConn(id int64) (*ServerConn, bool)
+func (s *Server) ConnsSize() int
 ```
-GetConn returns a server connection with specified ID.
+ConnsSize returns connections size.
 
 ## func (\*Server) Sched
 ```go

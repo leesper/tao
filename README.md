@@ -1,7 +1,34 @@
-Tao --- 轻量级TCP异步框架，Go语言实现 1.5.5
+Tao --- 轻量级TCP异步框架，Go语言实现 1.6.0
 ===========================================
 
 ## Light-weight TCP Asynchronous gOlang framework
+
+### supported Golang version: 1.9 and above
+
+Announcing Tao 1.6.0 - Release Notes
+--------
+1. Bugfix: writeLoop() drains all pending messages before exit;<br/>
+writeLoop()函数退出前将所有的网络数据包发送完毕；
+2. Renaming getter methods according to Effective Go;<br/>
+根据Effective Go重命名getter方法；
+3. Bugfix: timer task expired forever due to system clock affected by NTP;<br/>
+修复因为受NTP协议校正系统时钟偏差的影响，导致定时任务永远过期的bug；
+4. Bugfix: asyncWrite() do not return error if called after ServerConn or ClientConn closes;<br/>
+修复网络连接关闭后调用asyncWrite()不返回错误的bug；
+5. Providing WorkerSizeOption() for tuning the size of worker go-routine pool;<br/>
+提供WorkerSizeOption()来调节工作者线程池大小；
+6. Providing BufferSizeOption() for tuning the size of buffered channel;<br/>
+提供BufferSizeOption()来调节缓冲通道大小；
+7. Providing ReconnectOption() for activating ClientConn's reconnecting mechanism;<br/>
+提供ReconnectOption()来启动ClientConn的断线重连机制；
+8. Providing CustomCodecOption() for setting self-defined codec;<br/>
+提供CustomCodecOption() 来设置自定义编解码器；
+9. Providing TLSCredsOption() for running a TLS server;<br/>
+提供TLSCredsOption()来运行TLS服务器；
+10. Providing OnConnectOption(), OnMessageOption(), OnCloseOption() and OnErrorOption() for setting callbacks of the four situations respectively;<br/>
+提供OnConnectOption(), OnMessageOption(), OnCloseOption() 和 OnErrorOption()来设置四种情况下的回调函数；
+11. Use the standard sync.Map instead of map guarded by rwmutex;<br/>
+使用标准库中的sync.Map替换使用rwmutex保护的map；
 
 Announcing Tao 1.5 - Release Notes
 --------

@@ -114,7 +114,7 @@ type Server struct {
 	opts   options
 	ctx    context.Context
 	cancel context.CancelFunc
-	conns  *ConnMap
+	conns  *sync.Map
 	timing *TimingWheel
 	wg     *sync.WaitGroup
 	mu     sync.Mutex // guards following
@@ -147,7 +147,7 @@ func NewServer(opt ...ServerOption) *Server {
 
 	s := &Server{
 		opts:  opts,
-		conns: NewConnMap(),
+		conns: &sync.Map{},
 		wg:    &sync.WaitGroup{},
 		lis:   make(map[net.Listener]bool),
 	}
@@ -156,9 +156,14 @@ func NewServer(opt ...ServerOption) *Server {
 	return s
 }
 
-// ConnsMap returns connections managed.
-func (s *Server) ConnsMap() *ConnMap {
-	return s.conns
+// ConnsSize returns connections size.
+func (s *Server) ConnsSize() int {
+	var sz int
+	s.conns.Range(func(k, v interface{}) bool {
+		sz++
+		return true
+	})
+	return sz
 }
 
 // Sched sets a callback to invoke every duration.
@@ -171,32 +176,32 @@ func (s *Server) Sched(dur time.Duration, sched func(time.Time, WriteCloser)) {
 
 // Broadcast broadcasts message to all server connections managed.
 func (s *Server) Broadcast(msg Message) {
-	s.conns.RLock()
-	defer s.conns.RUnlock()
-	for _, c := range s.conns.m {
+	s.conns.Range(func(k, v interface{}) bool {
+		c := v.(*ServerConn)
 		if err := c.Write(msg); err != nil {
-			holmes.Errorf("broadcast error %v\n", err)
+			holmes.Errorf("broadcast error %v, conn id %d", err, k.(int64))
+			return false
 		}
-	}
+		return true
+	})
 }
 
 // Unicast unicasts message to a specified conn.
 func (s *Server) Unicast(id int64, msg Message) error {
-	s.conns.RLock()
-	defer s.conns.RUnlock()
-	c, ok := s.conns.m[id]
+	v, ok := s.conns.Load(id)
 	if ok {
-		return c.Write(msg)
+		return v.(*ServerConn).Write(msg)
 	}
-	return fmt.Errorf("conn %d not found", id)
+	return fmt.Errorf("conn id %d not found", id)
 }
 
 // Conn returns a server connection with specified ID.
 func (s *Server) Conn(id int64) (*ServerConn, bool) {
-	s.conns.RLock()
-	defer s.conns.RUnlock()
-	sc, ok := s.conns.m[id]
-	return sc, ok
+	v, ok := s.conns.Load(id)
+	if ok {
+		return v.(*ServerConn), ok
+	}
+	return nil, ok
 }
 
 // Start starts the TCP server, accepting new clients and creating service
@@ -252,7 +257,7 @@ func (s *Server) Start(l net.Listener) error {
 		tempDelay = 0
 
 		// how many connections do we have ?
-		sz := s.conns.Size()
+		sz := s.ConnsSize()
 		if sz >= MaxConnections {
 			holmes.Warnf("max connections size %d, refuse\n", sz)
 			rawConn.Close()
@@ -273,7 +278,7 @@ func (s *Server) Start(l net.Listener) error {
 		}
 		s.mu.Unlock()
 
-		s.conns.Put(netid, sc)
+		s.conns.Store(netid, sc)
 		addTotalConn(1)
 
 		s.wg.Add(1) // this will be Done() in ServerConn.Close()
@@ -281,12 +286,13 @@ func (s *Server) Start(l net.Listener) error {
 			sc.Start()
 		}()
 
-		holmes.Infof("accepted client %s, id %d, total %d\n", sc.Name(), netid, s.conns.Size())
-		s.conns.RLock()
-		for _, c := range s.conns.m {
-			holmes.Infof("client %s\n", c.Name())
-		}
-		s.conns.RUnlock()
+		holmes.Infof("accepted client %s, id %d, total %d\n", sc.Name(), netid, s.ConnsSize())
+		s.conns.Range(func(k, v interface{}) bool {
+			i := k.(int64)
+			c := v.(*ServerConn)
+			holmes.Infof("client(%d) %s", i, c.Name())
+			return true
+		})
 	} // for loop
 }
 
@@ -306,12 +312,15 @@ func (s *Server) Stop() {
 
 	// close all connections
 	conns := map[int64]*ServerConn{}
-	s.conns.RLock()
-	for k, v := range s.conns.m {
-		conns[k] = v
-	}
-	s.conns.RUnlock()
-	s.conns.Clear()
+
+	s.conns.Range(func(k, v interface{}) bool {
+		i := k.(int64)
+		c := v.(*ServerConn)
+		conns[i] = c
+		return true
+	})
+	// let GC do the cleanings
+	s.conns = nil
 
 	for _, c := range conns {
 		c.rawConn.Close()
@@ -341,10 +350,11 @@ func (s *Server) timeOutLoop() {
 
 		case timeout := <-s.timing.TimeOutChannel():
 			netID := timeout.Ctx.Value(netIDCtx).(int64)
-			if sc, ok := s.conns.Get(netID); ok {
+			if v, ok := s.conns.Load(netID); ok {
+				sc := v.(*ServerConn)
 				sc.timerCh <- timeout
 			} else {
-				holmes.Warnf("invalid client %d\n", netID)
+				holmes.Warnf("invalid client %d", netID)
 			}
 		}
 	}

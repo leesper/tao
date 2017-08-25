@@ -22,7 +22,7 @@ func main() {
 	go func() {
 		for i := 0; i < 20; i++ {
 			select {
-			case timeout := <-wheel.GetTimeOutChannel():
+			case timeout := <-wheel.TimeOutChannel():
 				timeout.Callback(time.Now(), nil)
 			}
 		}

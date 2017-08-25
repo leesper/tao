@@ -156,7 +156,7 @@ func (sc *ServerConn) Close() {
 		}
 
 		// remove connection from server
-		sc.belong.conns.Remove(sc.netid)
+		sc.belong.conns.Delete(sc.netid)
 		addTotalConn(-1)
 
 		// close net.Conn, any blocked read or write operation will be unblocked and
