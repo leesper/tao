@@ -5,14 +5,6 @@ Light-weight TCP Asynchronous gOlang framework
 
 [![GitHub stars](https://img.shields.io/github/stars/leesper/tao.svg)](https://github.com/leesper/tao/stargazers) [![GitHub license](https://img.shields.io/badge/license-Apache%202-blue.svg)](https://raw.githubusercontent.com/leesper/tao/master/LICENSE) [![GoDoc](https://godoc.org/github.com/leesper/tao?status.svg)](http://godoc.org/github.com/leesper/tao)
 
-## Features
-
-Let people know what your project can do specifically.
-
-## Visuals
-
-Some screenshots or GIFs about your project. [ttygif](https://github.com/icholy/ttygif) can help, and [Asciinema](https://asciinema.org/) for a more sophisticated method.
-
 ## Requirements
 
 * Golang 1.9 and above
