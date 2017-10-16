@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -15,7 +14,6 @@ import (
 )
 
 func init() {
-	flag.Parse()
 	netIdentifier = NewAtomicInt64(0)
 }
 

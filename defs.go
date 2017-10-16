@@ -32,8 +32,8 @@ var (
 	ErrServerClosed  = errors.New("server has been closed")
 )
 
+// definitions about some constants.
 const (
-	// MaxConnections is the maximum number of client connections allowed.
 	MaxConnections    = 1000
 	BufferSize128     = 128
 	BufferSize256     = 256
