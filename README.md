@@ -4,6 +4,7 @@ Light-weight TCP Asynchronous gOlang framework
 轻量级TCP异步框架，Go语言实现 1.6.0
 
 [![GitHub stars](https://img.shields.io/github/stars/leesper/tao.svg)](https://github.com/leesper/tao/stargazers) 
+[![GitHub forks](https://img.shields.io/github/forks/leesper/tao.svg)](https://github.com/leesper/tao/network)
 [![GitHub license](https://img.shields.io/badge/license-Apache%202-blue.svg)](https://raw.githubusercontent.com/leesper/tao/master/LICENSE)
 [![GoDoc](https://godoc.org/github.com/leesper/tao?status.svg)](http://godoc.org/github.com/leesper/tao)
 
