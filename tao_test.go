@@ -1,6 +1,13 @@
 package tao
 
-import "testing"
+import (
+	"testing"
+)
+
+const (
+	Port = 1234
+	Addr = "tcp:1234"
+)
 
 // example 1: tcp echo server
 // echoServer, _ := tao.NewServer("tcp:8341").
@@ -11,19 +18,17 @@ import "testing"
 // echoServer.Serve()
 
 // TcpServer
-// - TODO: should return tcp server with proto:port specified
 func TestShouldReturnTcpServerWithProtoPortSpecified(t *testing.T) {
-	server, err := NewServer("tcp:1234")
+	server, err := NewServer(Addr)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
 
-	if port := server.Port(); port != 1234 {
-		t.Fatalf("expected 1234, got %d", port)
+	if server.Port() != Port {
+		t.Fatalf("expected %d, got %d", Port, server.Port())
 	}
 }
 
-// - TODO: should return error if port not a number
 func TestShouldReturnErrorIfPortNotNumber(t *testing.T) {
 	_, err := NewServer("tcp:abcd")
 	if err == nil {
@@ -36,12 +41,31 @@ func TestShouldReturnTcpServerIfProtoOmitted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
-	if server.Port() != 1234 {
-		t.Fatalf("expected 8341, got %d", server.Port())
+	if server.Port() != Port {
+		t.Fatalf("expected %d, got %d", Port, server.Port())
 	}
 }
 
-// - TODO: should callback when data received
+// - TODO: should call OnData callback when data received
+// func TestShouldCallOnDataCallbackWhenDataReceived(t *testing.T) {
+// 	server, err := NewServer(":1234")
+// 	if err != nil {
+// 		t.Fatalf("unexpected error %v", err)
+// 	}
+
+// 	called := false
+// 	server.OnData(func(conn *Conn, data *Buffer) {
+// 		called = true
+// 		server.Close()
+// 	})
+
+// 	server.Serve()
+
+// 	if !called {
+// 		t.Fatalf("expected true, got %v", called)
+// 	}
+// }
+
 // - TODO: should wait and accept new connection when serve
 // - TODO: should read data from client and echoed back
 // - TODO: should shutdown server gracefully when ctrl+c pressed

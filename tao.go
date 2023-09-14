@@ -9,10 +9,6 @@ type TcpServer struct {
 	port int
 }
 
-func (s *TcpServer) Port() int {
-	return s.port
-}
-
 func NewServer(addr string) (*TcpServer, error) {
 	parts := strings.Split(addr, ":")
 	port, err := strconv.Atoi(parts[1])
@@ -21,3 +17,18 @@ func NewServer(addr string) (*TcpServer, error) {
 	}
 	return &TcpServer{port}, nil
 }
+
+func (s *TcpServer) Port() int {
+	return s.port
+}
+
+func (s *TcpServer) Close() {
+
+}
+
+func (s *TcpServer) Serve() {}
+
+func (s *TcpServer) OnData(func(c *Conn, d *Buffer)) {}
+
+type Conn struct{}
+type Buffer struct{}
