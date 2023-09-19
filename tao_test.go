@@ -1,6 +1,7 @@
 package tao
 
 import (
+	"net"
 	"testing"
 )
 
@@ -46,29 +47,27 @@ func TestShouldReturnTcpServerIfProtoOmitted(t *testing.T) {
 	}
 }
 
+// - TODO: should accept new conn when serve
+func TestShouldAcceptNewConnWhenServe(t *testing.T) {
+	server, err := NewServer(Addr)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	go func() {
+		server.Serve()
+	}()
+
+	_, err = net.Dial("tcp", "localhost:1234")
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+}
+
+// - TODO: should call OnConn callback when new conn available
 // - TODO: should call OnData callback when data received
-// func TestShouldCallOnDataCallbackWhenDataReceived(t *testing.T) {
-// 	server, err := NewServer(":1234")
-// 	if err != nil {
-// 		t.Fatalf("unexpected error %v", err)
-// 	}
-
-// 	called := false
-// 	server.OnData(func(conn *Conn, data *Buffer) {
-// 		called = true
-// 		server.Close()
-// 	})
-
-// 	server.Serve()
-
-// 	if !called {
-// 		t.Fatalf("expected true, got %v", called)
-// 	}
-// }
-
-// - TODO: should wait and accept new connection when serve
 // - TODO: should read data from client and echoed back
-// - TODO: should shutdown server gracefully when ctrl+c pressed
+// - TODO: should close server gracefully when ctrl+c pressed
 // Conn
 // - TODO: should write Bufferred bytes data to client
 // - TODO: should return remote addr of client
