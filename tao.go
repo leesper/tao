@@ -24,27 +24,7 @@ func (s *TcpServer) Port() int {
 }
 
 func (s *TcpServer) Serve() {
-	sock, err := newSocket()
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.setNonblock()
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.setSockOpt(syscall.SO_REUSEADDR, syscall.SO_REUSEPORT)
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.bind(s.port)
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.listen()
+	serverSock, err := newServerSocket(s.port)
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +36,7 @@ func (s *TcpServer) Serve() {
 
 	events := []syscall.Kevent_t{
 		{
-			Ident:  uint64(sock.fd),
+			Ident:  uint64(serverSock.fd),
 			Filter: syscall.EVFILT_READ,
 			Flags:  syscall.EV_ADD,
 		},
