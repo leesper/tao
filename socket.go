@@ -7,6 +7,34 @@ type socket struct {
 	readable bool
 }
 
+func newServerSocket(port int) (*socket, error) {
+	serverSock, err := newSocket()
+	if err != nil {
+		return nil, err
+	}
+	err = serverSock.setNonblock()
+	if err != nil {
+		return nil, err
+	}
+
+	err = serverSock.setSockOpt(syscall.SO_REUSEADDR, syscall.SO_REUSEPORT)
+	if err != nil {
+		return nil, err
+	}
+
+	err = serverSock.bind(port)
+	if err != nil {
+		return nil, err
+	}
+
+	err = serverSock.listen()
+	if err != nil {
+		return nil, err
+	}
+
+	return serverSock, nil
+}
+
 func newSocket() (*socket, error) {
 	fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
 	if err != nil {

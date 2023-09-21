@@ -72,7 +72,13 @@ func TestShouldAcceptNewConnWhenServe(t *testing.T) {
 //   handler.handleEvents()
 // }
 
-// - TODO: should return server socket bound on port
+func TestShouldCreateServerSocketBoundOnPort(t *testing.T) {
+	_, err := newServerSocket(1234)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+}
+
 // - TODO: should socket be set readable
 // - TODO: should socket be set writable
 // - TODO: should acceptor handle events on sock
