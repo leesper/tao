@@ -49,17 +49,6 @@ func (s *TcpServer) Serve() {
 		panic(err)
 	}
 
-	// sock.enableRead()
-	// acceptor := newAcceptor(sock)
-	// poller := newKqueuePoller()
-	// poller.addHandler(acceptor->sock, acceptor)
-	//   map[socket]Handler
-	//   interface Handler handle() error
-	// events := poller.poll()
-	// for _, event := range events {
-	//   poller.handler(event.sock).handle(event.value)
-	// }
-
 	kfd, err := syscall.Kqueue()
 	if err != nil {
 		panic(err)

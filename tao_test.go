@@ -46,8 +46,6 @@ func TestShouldReturnTcpServerIfProtoOmitted(t *testing.T) {
 		t.Fatalf("expected %d, got %d", Port, server.Port())
 	}
 }
-
-// - TODO: should accept new conn when serve
 func TestShouldAcceptNewConnWhenServe(t *testing.T) {
 	server, err := NewServer(Addr)
 	if err != nil {
@@ -63,6 +61,24 @@ func TestShouldAcceptNewConnWhenServe(t *testing.T) {
 		t.Fatalf("unexpected error %v", err)
 	}
 }
+
+// sock, err := newNonblockingServerSocket(s.port)
+// sock.enableRead()
+// acceptor := newAcceptor(sock)
+// poller := newKqueuePoller()
+// poller.addHandler(acceptor)
+// activeHandlers := poller.poll()
+// for _, handler := range activeHandlers {
+//   handler.handleEvents()
+// }
+
+// - TODO: should return server socket bound on port
+// - TODO: should socket be set readable
+// - TODO: should socket be set writable
+// - TODO: should acceptor handle events on sock
+// - TODO: should poller add handler
+// - TODO: should poller remove handler
+// - TODO: should return handlers when poll
 
 // - TODO: should call OnConn callback when new conn available
 // - TODO: should call OnData callback when data received
