@@ -6,6 +6,10 @@ import (
 	"syscall"
 )
 
+var (
+	addrAny = [4]byte{}
+)
+
 type TcpServer struct {
 	port int
 }
