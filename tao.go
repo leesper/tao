@@ -6,10 +6,6 @@ import (
 	"syscall"
 )
 
-var (
-	addrAny = [4]byte{}
-)
-
 type TcpServer struct {
 	port int
 }
@@ -25,92 +21,6 @@ func NewServer(addr string) (*TcpServer, error) {
 
 func (s *TcpServer) Port() int {
 	return s.port
-}
-
-type ioEvent int32
-
-const (
-	eventRead ioEvent = iota
-	eventWrite
-)
-
-type acceptor struct {
-	sock *socket
-}
-
-type handler interface {
-	handle(e ioEvent) error
-}
-
-func newAcceptor(port int) *acceptor {
-	sock, err := newSocket()
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.setNonblock()
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.setSockOpt(syscall.SO_REUSEADDR, syscall.SO_REUSEPORT)
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.bind(port)
-	if err != nil {
-		panic(err)
-	}
-
-	err = sock.listen()
-	if err != nil {
-		panic(err)
-	}
-
-	return &acceptor{sock}
-}
-
-func (a *acceptor) handle(e ioEvent) error {
-	if e == eventRead {
-		_, _, err := syscall.Accept(a.sock.fd)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-type kqueuePoller struct {
-	kfd      int
-	handlers map[socket]handler
-}
-
-func newKqueuePoller() (*kqueuePoller, error) {
-	kfd, err := syscall.Kqueue()
-	if err != nil {
-		return nil, err
-	}
-	handlers := make(map[socket]handler)
-	return &kqueuePoller{kfd, handlers}, nil
-}
-
-func (p *kqueuePoller) addHandler(sock socket, h handler) {
-	p.handlers[sock] = h
-}
-
-func (p *kqueuePoller) handler(sock socket) handler {
-	return p.handlers[sock]
-}
-
-// func (p *kqueuePoller) poll() []event {
-// 	events := []event{}
-
-// }
-
-type event struct {
-	ident socket
-	typ   ioEvent
 }
 
 func (s *TcpServer) Serve() {
